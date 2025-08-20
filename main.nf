@@ -33,8 +33,8 @@ process FLASH {
         tuple val(sample), path(fastq1), path(fastq2), path(gtf), path(fasta)
 
     output:
-        tuple val(sample), path("${sample}.extendedFrags.fastq.gzip"), emit: mergedfastq
-        tuple val(sample), path("${sample}.notCombined_1.fastq.gzip"), path("${sample}.notCombined_2.fastq.gzip"), emit: unmergedfastq
+        tuple val(sample), path("${sample}.extendedFrags.fastq.gz"), emit: mergedfastq
+        tuple val(sample), path("${sample}.notCombined_1.fastq.gz"), path("${sample}.notCombined_2.fastq.gz"), emit: unmergedfastq
 
     script:
     """
@@ -44,9 +44,43 @@ process FLASH {
       -t ${task.cpus} \
       --allow-outies \
       -z --compress-prog=gzip \
+      --suffix=gz \
       -o ${sample} \
       ${fastq1} \
       ${fastq2}
+    """
+}
+
+process FASTX {
+
+    tag "$sample"
+    label 'process_medium'
+    publishDir "${params.outdir}/fastx", mode: 'copy', overwrite: true
+
+    container 'quay.io/biocontainers/fastx_toolkit:0.0.14--hfc679d8_7'
+
+    input:
+        tuple val(sample), path(merge)
+        tuple val(sample), path(unmerge1), path(unmerge2)
+    
+    output:
+        tuple val(sample), path("${sample}.combined.fastq.gz"), emit: combinedfastq
+        tuple val(sample), path("${sample}.combined.reverse.fastq.gz"), emit: reversefastq
+
+    script:
+    """
+    # Reverse  complement unmerge2
+    zcat ${unmerge2} | fastx_reverse_complement \
+      -z \
+      -o ${sample}.notCombined_2.fastq.revcomp.gz
+
+    # Merge the files
+    cat ${merge} ${unmerge1} ${sample}.notCombined_2.fastq.revcomp.gz > ${sample}.combined.fastq.gz
+
+    # Reverse complement the combined file
+    zcat ${sample}.combined.fastq.gz | fastx_reverse_complement \
+    -z \
+    -o ${sample}.combined.reverse.fastq.gz
     """
 }
 
@@ -59,6 +93,7 @@ workflow {
     // METADATA.out.view { v -> "Channel is ${v}" }
 
     FLASH(METADATA.out)
+    FASTX(FLASH.out.mergedfastq, FLASH.out.unmergedfastq)
 
 }
 
