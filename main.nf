@@ -33,8 +33,7 @@ process FLASH {
         tuple val(sample), path(fastq1), path(fastq2), path(gtf), path(fasta)
 
     output:
-        tuple val(sample), path("${sample}.extendedFrags.fastq.gz"), emit: mergedfastq
-        tuple val(sample), path("${sample}.notCombined_1.fastq.gz"), path("${sample}.notCombined_2.fastq.gz"), emit: unmergedfastq
+        tuple val(sample), path("${sample}.extendedFrags.fastq.gz"), path("${sample}.notCombined_1.fastq.gz"), path("${sample}.notCombined_2.fastq.gz"), emit: mergedfastq
 
     script:
     """
@@ -60,8 +59,7 @@ process FASTX {
     container 'quay.io/biocontainers/fastx_toolkit:0.0.14--hfc679d8_7'
 
     input:
-        tuple val(sample), path(merge)
-        tuple val(sample), path(unmerge1), path(unmerge2)
+        tuple val(sample), path(merge), path(unmerge1), path(unmerge2)
     
     output:
         tuple val(sample), path("${sample}.combined.fastq.gz"), emit: combinedfastq
@@ -93,7 +91,7 @@ workflow {
     // METADATA.out.view { v -> "Channel is ${v}" }
 
     FLASH(METADATA.out)
-    FASTX(FLASH.out.mergedfastq, FLASH.out.unmergedfastq)
+    FASTX(FLASH.out.mergedfastq)
 
 }
 
