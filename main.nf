@@ -5,7 +5,7 @@ nextflow.enable.dsl=2
 
 // Modules
 
-METADATA {
+workflow METADATA {
     take: csv
     main:
         Channel
