@@ -33,7 +33,8 @@ process FLASH {
         tuple val(sample), path(fastq1), path(fastq2), path(gtf), path(fasta)
 
     output:
-        tuple val(sample), path("${sample}.extendedFrags.fastq.gz"), emit: fastq
+        tuple val(sample), path("${sample}.extendedFrags.fastq.gzip"), emit: mergedfastq
+        tuple val(sample), path("${sample}.notCombined_1.fastq.gzip"), path("${sample}.notCombined_2.fastq.gzip"), emit: unmergedfastq
 
     script:
     """
