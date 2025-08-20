@@ -44,7 +44,6 @@ process FLASH {
       --allow-outies \
       -z --compress-prog=gzip \
       -o ${sample} \
-      -d './'
       ${fastq1} \
       ${fastq2}
     """
