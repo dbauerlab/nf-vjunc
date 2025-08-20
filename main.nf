@@ -56,7 +56,7 @@ workflow {
 
     // Run the METADATA workflow
     METADATA(params.input)
-    METADATA.out.view { v -> "Channel is ${v}" }
+    // METADATA.out.view { v -> "Channel is ${v}" }
 
     FLASH(METADATA.out)
 
