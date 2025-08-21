@@ -111,11 +111,11 @@ process HARDTRIM {
         then
             HARDCLIP=19
         fi
-        HARDCLIP=`expr \$HARDCLIP + 1`
+        HARDCLIP=`expr \${HARDCLIP} + 1`
         # Run the hard-trim on R1
         zcat ${umifastq1} | fastx_trimmer \
             -z \
-            -f $HARDCLIP \
+            -f "\${HARDCLIP}" \
             -o ${sample}.collapseReady.R1.fastq.gz
         # Copy R2 as it is
         cp ${umifastq2} ${sample}.collapseReady.R2.fastq.gz
