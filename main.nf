@@ -111,7 +111,7 @@ process HARDTRIM {
         then
             HARDCLIP=19
         fi
-        HARDCLIP=$(( $HARDCLIP + 1 ))
+        HARDCLIP=`expr \$HARDCLIP + 1`
         # Run the hard-trim on R1
         zcat ${umifastq1} | fastx_trimmer \
             -z \
