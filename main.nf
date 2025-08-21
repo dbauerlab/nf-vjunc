@@ -207,16 +207,14 @@ workflow {
 
     // Run the METADATA workflow
     METADATA(params.input)
-    // Duplicate the output for different processes
-    METADATA.out.into { meta_for_trim; meta_for_hardtrim; meta_for_fastx }
     // METADATA.out.view { v -> "Channel is ${v}" }
 
-    TRIMGALORE(meta_for_trim)
+    TRIMGALORE(METADATA.out)
     UMITOOLS(TRIMGALORE.out.trimfastq)
-    joined_for_hardtrim = meta_for_hardtrim.join(UMITOOLS.out.umifastq)
+    joined_for_hardtrim = METADATA.out.join(UMITOOLS.out.umifastq)
     HARDTRIM(joined_for_hardtrim)
     FLASH(HARDTRIM.out.clippedfastq)
-    joined_for_fastx = meta_for_fastx.join(FLASH.out.mergedfastq)
+    joined_for_fastx = METADATA.out.join(FLASH.out.mergedfastq)
     FASTX(joined_for_fastx)
 
 }
