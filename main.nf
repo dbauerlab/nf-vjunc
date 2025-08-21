@@ -21,6 +21,35 @@ workflow METADATA {
         data
 }
 
+process TRIMGALORE {
+
+    tag "$sample"
+    label 'process_medium'
+    publishDir "${params.outdir}/trimmed", mode: 'copy', overwrite: true
+
+    container 'quay.io/biocontainers/trim-galore:0.6.9--hdfd78af_0'
+
+    input:
+        tuple val(sample), path(fastq1), path(fastq2), path(gtf), path(fasta)
+
+    output:
+        tuple val(sample), path("${sample}_val_1.fq.gz"), path("${sample}_val_2.fq.gz"), emit: trimfastq
+
+    script:
+    """
+    trim_galore \
+        --paired \
+        -a "AGATCGGAAGAGC" \
+        -a2 "AGATCGGAAGAGC" \
+        --cores ${task.cpus} \
+        --basename ${sample} \
+        --length 30 \
+        --fastqc \
+        ${fastq1} \
+        ${fastq2}
+    """
+}
+
 process FLASH {
 
     tag "$sample"
@@ -30,7 +59,7 @@ process FLASH {
     container 'staphb/flash:1.2.11'
 
     input:
-        tuple val(sample), path(fastq1), path(fastq2), path(gtf), path(fasta)
+        tuple val(sample), path(fastq1), path(fastq2)
 
     output:
         tuple val(sample), path("${sample}.extendedFrags.fastq.gz"), path("${sample}.notCombined_1.fastq.gz"), path("${sample}.notCombined_2.fastq.gz"), emit: mergedfastq
@@ -90,7 +119,8 @@ workflow {
     METADATA(params.input)
     // METADATA.out.view { v -> "Channel is ${v}" }
 
-    FLASH(METADATA.out)
+    TRIMGALORE(METADATA.out)
+    FLASH(TRIMGALORE.out.trimfastq)
     FASTX(FLASH.out.mergedfastq)
 
 }
