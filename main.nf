@@ -62,7 +62,7 @@ process UMITOOLS {
 
     output:
         tuple val(sample), path("${sample}.umi_extracted.R1.fastq.gz"), path("${sample}.umi_extracted.R2.fastq.gz"), emit: umifastq
-        tuple val(sample) path("${sample}.umi_log"), emit: umilog
+        tuple val(sample), path("${sample}.umi_log"), emit: umilog
 
     script:
     """
