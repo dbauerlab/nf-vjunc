@@ -16,7 +16,7 @@ workflow METADATA {
                             file(row.fastq2, checkIfExists: true),
                             file(row.gtf, checkIfExists: true),
                             file(row.fasta, checkIfExists: true),
-                            file(row.library, checkIfExists: true) ]  }
+                            row.library ]  }
             .set { data }
     emit:
         data
