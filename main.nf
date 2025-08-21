@@ -175,7 +175,7 @@ process FASTX {
     """
     # Combine R1R2 collapsed reads with R1 singletones (LIB B or C or D), or R1R2 + R1 + R2 (LIB A)
     # R2 singletons are first reverse-complement to put them in the same orientation as R1 singletones.
-    if test "${LIB}" == "A"
+    if test "${library}" == "A"
     then
         # Reverse complement unmerge2
         zcat ${unmerge2} | fastx_reverse_complement \
