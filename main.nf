@@ -18,8 +18,45 @@ workflow METADATA {
                             file(row.fasta, checkIfExists: true),
                             row.library ]  }
             .set { data }
+
+        // create refs channel with unique fasta+gtf pairs
+        data
+            .map { sample, fastq1, fastq2, gtf, fasta, library ->
+                tuple(gtf, fasta)
+            }
+            .unique()
+            .set { refs }
     emit:
         data
+        refs
+}
+
+process STAR_VIRAL_INDEX {
+
+    tag "$fasta"
+    label 'process_high'
+    publishDir "${params.outdir}/${prefix}.index", mode: 'copy', overwrite: true
+
+    container 'quay.io/biocontainers/star:2.7.11b--h5ca1c30_7'
+
+    input:
+        tuple path(gtf), path(fasta)
+    
+    output:
+        tuple path(fasta), path(gtf), path("${prefix}.index"), emit: viralindex
+
+    script:
+    // derive a unique prefix from the fasta file name
+    def prefix = fasta.baseName
+    """
+    mkdir viral_index
+    STAR \
+        --runMode genomeGenerate \
+        --genomeDir ${prefix}.index/ \
+        --genomeFastaFiles $fasta \
+        --sjdbGTFfile $gtf \
+        --runThreadN $task.cpus
+    """
 }
 
 process TRIMGALORE {
@@ -201,6 +238,7 @@ process FASTX {
     """
 }
 
+
 // Main pipeline
 
 workflow {
@@ -209,13 +247,15 @@ workflow {
     METADATA(params.input)
     // METADATA.out.view { v -> "Channel is ${v}" }
 
-    TRIMGALORE(METADATA.out)
+    TRIMGALORE(METADATA.out.data)
+    STAR_VIRAL_INDEX(METADATA.out.refs)
     UMITOOLS(TRIMGALORE.out.trimfastq)
-    joined_for_hardtrim = METADATA.out.join(UMITOOLS.out.umifastq)
+    joined_for_hardtrim = METADATA.out.data.join(UMITOOLS.out.umifastq)
     HARDTRIM(joined_for_hardtrim)
     FLASH(HARDTRIM.out.clippedfastq)
-    joined_for_fastx = METADATA.out.join(FLASH.out.mergedfastq)
+    joined_for_fastx = METADATA.out.data.join(FLASH.out.mergedfastq)
     FASTX(joined_for_fastx)
+    
 
 }
 
