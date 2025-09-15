@@ -35,7 +35,7 @@ process STAR_VIRAL_INDEX {
 
     tag "$fasta"
     label 'process_high'
-    publishDir "${params.outdir}/${prefix}.index", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/indices", mode: 'copy', overwrite: true
 
     container 'quay.io/biocontainers/star:2.7.11b--h5ca1c30_7'
 
@@ -43,13 +43,18 @@ process STAR_VIRAL_INDEX {
         tuple path(gtf), path(fasta)
     
     output:
-        tuple path(fasta), path(gtf), path("${prefix}.index"), emit: viralindex
+        tuple path(fasta), path(gtf), path("*.index")
 
     script:
     // derive a unique prefix from the fasta file name
-    def prefix = fasta.baseName
+    def prefix = ${fasta.baseName}
     """
-    mkdir viral_index
+    # Compute a safe prefix from the fasta filename
+    fname=\$(basename "$fasta")
+    prefix=\${fname%%.*}   # strips first extension, handles e.g. hg38.fa or hg38.fa.gz
+
+    mkdir -p "${prefix}.index"
+    
     STAR \
         --runMode genomeGenerate \
         --genomeDir ${prefix}.index/ \
