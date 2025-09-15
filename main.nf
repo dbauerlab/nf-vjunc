@@ -46,8 +46,6 @@ process STAR_VIRAL_INDEX {
         tuple path(fasta), path(gtf), path("*.index")
 
     script:
-    // derive a unique prefix from the fasta file name
-    def prefix = ${fasta.baseName}
     """
     # Compute a safe prefix from the fasta filename
     fname=\$(basename "$fasta")
