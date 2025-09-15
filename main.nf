@@ -35,7 +35,7 @@ process STAR_VIRAL_INDEX {
 
     tag "$fasta"
     label 'process_high'
-    publishDir "${params.outdir}/indices", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/indices", mode: 'copy', overwrite: true, pattern: '*.index'
 
     container 'quay.io/biocontainers/star:2.7.11b--h5ca1c30_7'
 
