@@ -422,6 +422,6 @@ workflow {
     //joined_for_premap.view { "JOINED: ${it}" }
 
     // Run premap
-    //STAR_PREMAP(joined_for_premap)
+    STAR_PREMAP(joined_for_premap)
 
     }
