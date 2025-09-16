@@ -369,29 +369,39 @@ workflow {
     joined_for_fastx = METADATA.out.data.join(FLASH.out.mergedfastq)
     FASTX(joined_for_fastx)
 
-    // --- Key STAR_JOINT_INDEX outputs by composite key ---
+    // --- Key STAR_JOINT_INDEX outputs ---
     joint_keyed = STAR_JOINT_INDEX.out.jointindex
         .map { gtf, fasta, jindex -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", jindex) }
-        .groupTuple()  // Each key maps to a list of joint index files (should be 1 per reference)
+        .groupTuple()   // Each key maps to a list of joint index files
     joint_keyed.view { "STAR jointindex keyed: ${it}" }
 
-    // --- Key FASTX outputs the same way ---
+    // --- Key FASTX outputs ---
     fastx_keyed = FASTX.out.fastx_pair
         .map { sample, combined, reverse, gtf, fasta, library ->
             tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", sample, combined, reverse)
         }
     fastx_keyed.view { "FASTX fastx_pair keyed: ${it}" }
 
-    // --- Join FASTX samples with their corresponding joint index ---
+    // --- Combine channels and filter for matching keys ---
     joined_for_premap = fastx_keyed
-        .join(joint_keyed)  // join on composite key
-        .map { key, sample, combined, reverse, jindex_list ->
-            jindex = jindex_list[0]  // extract single joint index
-            tuple(sample, combined, reverse, jindex)
+        .combine(joint_keyed)  // Cartesian product of both channels
+        .map { fx, jk ->
+            key_fx, sample, combined, reverse = fx
+            key_jk, jindex_list = jk
+            if (key_fx == key_jk) {
+                jindex = jindex_list[0]  // extract single joint index
+                tuple(sample, combined, reverse, jindex)
+            } else {
+                null
+            }
         }
+        .filter { it != null }  // remove non-matching combinations
 
     // Optional: view to check
-    joined_for_premap.view { "STAR_PREMAP input: ${it}" }
+    joined_for_premap.view { "STAR_PREMAP input (all samples): ${it}" }
+
+    // --- Run STAR_PREMAP ---
+    STAR_PREMAP(joined_for_premap)
 
     // Give keys to STAR_JOINT_INDEX and FASTX outputs
     // Build a channel keyed by a composite key "gtf::fasta" so joins are unambiguous
