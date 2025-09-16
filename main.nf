@@ -324,6 +324,35 @@ process FASTX {
     """
 }
 
+process STAR_PREMAP {
+
+    tag "$sample"
+    label 'process_high'
+    publishDir "${params.outdir}/star_premap", mode: 'copy', overwrite: true
+
+    container 'quay.io/biocontainers/star:2.7.11b--h5ca1c30_7'
+
+    input:
+        tuple val(sample), path(combined), path(reverse), path(gtf), path(fasta), val(library), path(joint_combined_fa), path(joint_combined_gtf), path(joint_index)
+
+    output:
+        tuple val(sample), path(bam), emit: premap_bam
+
+    script:
+    """
+    STAR \
+        --runThreadN $task.cpus \
+        --genomeDir $joint_index \
+        --readFilesIn $reverse \
+        --readFilesCommand zcat \
+        --twopassMode Basic \
+        --outReadsUnmapped None \
+        --outSAMunmapped Within \
+        --outSAMtype BAM Unsorted
+    """
+
+}
+
 
 // Main pipeline
 
