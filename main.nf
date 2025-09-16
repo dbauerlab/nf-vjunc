@@ -376,6 +376,13 @@ workflow {
     joint_keyed = STAR_JOINT_INDEX.out.jointindex
         .map{ gtf, fasta, combined_fa, combined_gtf, idx -> tuple("${gtf.toString()}::${fasta.toString()}", gtf, fasta, combined_fa, combined_gtf, idx) }
 
+    // Diagnostic: show joint_keyed contents if available
+    if (binding.hasVariable('joint_keyed') && joint_keyed) {
+        joint_keyed.view { v -> "joint_keyed: ${v}" }
+    } else {
+        println "Warning: joint_keyed channel is null/empty"
+    }
+
     // Pair FASTX combined and reverse outputs per sample
     fastx_pairs = FASTX.out.combinedfastq
         .join(FASTX.out.reversefastq)
@@ -385,6 +392,13 @@ workflow {
             reverse = right[1]
             tuple(sample, combined, reverse)
         }
+
+    // Diagnostic: show fastx_pairs contents if available
+    if (binding.hasVariable('fastx_pairs') && fastx_pairs) {
+        fastx_pairs.view { v -> "fastx_pairs: ${v}" }
+    } else {
+        println "Warning: fastx_pairs channel is null/empty"
+    }
 
     // Attach sample metadata (gtf,fasta,library) to FASTX outputs and key by gtf::fasta
     fastx_with_meta = fastx_pairs
@@ -399,6 +413,13 @@ workflow {
             key = "${gtf.toString()}::${fasta.toString()}"
             tuple(key, sample, combined, reverse, gtf, fasta, library)
         }
+
+    // Diagnostic: show fastx_with_meta contents if available
+    if (binding.hasVariable('fastx_with_meta') && fastx_with_meta) {
+        fastx_with_meta.view { v -> "fastx_with_meta: ${v}" }
+    } else {
+        println "Warning: fastx_with_meta channel is null/empty"
+    }
 
     // Join FASTX+meta with joint index so each sample receives the matching joint index path
     aligned_inputs = fastx_with_meta
@@ -419,6 +440,11 @@ workflow {
         }
         .set { aligned_inputs }
     
-    aligned_inputs.view { v -> "Aligned inputs: ${v}" }
+    // Guard the view call: aligned_inputs may be null if upstream channels produced no output
+    if (aligned_inputs) {
+        aligned_inputs.view { v -> "Aligned inputs: ${v}" }
+    } else {
+        println "Warning: aligned_inputs channel is null/empty; skipping view()"
+    }
 
     }
