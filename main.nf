@@ -291,8 +291,8 @@ process FASTX {
         tuple val(sample), path(fastq1), path(fastq2), path(gtf), path(fasta), val(library), path(merge), path(unmerge1), path(unmerge2)
     
     output:
-        tuple val(sample), path("${sample}.combined.fastq.gz"), emit: combinedfastq
-        tuple val(sample), path("${sample}.combined.reverse.fastq.gz"), emit: reversefastq
+        // Emit a single paired channel containing both combined and reverse fastq paths
+        tuple val(sample), path("${sample}.combined.fastq.gz"), path("${sample}.combined.reverse.fastq.gz"), emit: fastx_pair
 
     script:
     """
@@ -384,14 +384,9 @@ workflow {
     }
 
     // Pair FASTX combined and reverse outputs per sample
-    fastx_pairs = FASTX.out.combinedfastq
-        .join(FASTX.out.reversefastq)
-        .map{ left, right ->
-            sample = left[0]
-            combined = left[1]
-            reverse = right[1]
-            tuple(sample, combined, reverse)
-        }
+    // FASTX now emits a single `fastx_pair` channel: [ sample, combined, reverse ]
+    fastx_pairs = FASTX.out.fastx_pair
+        .map{ sample, combined, reverse -> tuple(sample, combined, reverse) }
 
     // Diagnostic: show fastx_pairs contents if available
     if (binding.hasVariable('fastx_pairs') && fastx_pairs) {
