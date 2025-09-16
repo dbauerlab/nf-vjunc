@@ -292,7 +292,7 @@ process FASTX {
     
     output:
         // Emit a single paired channel containing both combined and reverse fastq paths
-        tuple val(sample), path("${sample}.combined.fastq.gz"), path("${sample}.combined.reverse.fastq.gz"), emit: fastx_pair
+            tuple val(sample), path("${sample}.combined.fastq.gz"), path("${sample}.combined.reverse.fastq.gz"), val(gtf), val(fasta), val(library), emit: fastx_pair
 
     script:
     """
@@ -357,11 +357,19 @@ process STAR_PREMAP {
 // Main pipeline
 
 workflow {
+    
+    // Helper to build a normalized key from gtf and fasta paths
+    def makeKey = { gtfPath, fastaPath ->
+        def g = new File(gtfPath.toString()).canonicalPath
+        def f = new File(fastaPath.toString()).canonicalPath
+        return "${g}::${f}"
+    }
 
     // Run the METADATA workflow
     METADATA(params.input)
     // METADATA.out.view { v -> "Channel is ${v}" }
 
+    // Run the processes
     TRIMGALORE(METADATA.out.data)
     STAR_VIRAL_INDEX(METADATA.out.refs)
     STAR_JOINT_INDEX(METADATA.out.refs)
@@ -374,7 +382,7 @@ workflow {
 
     // Build joint index keyed by original gtf::fasta so we can match it to samples
     joint_keyed = STAR_JOINT_INDEX.out.jointindex
-        .map{ gtf, fasta, combined_fa, combined_gtf, idx -> tuple("${gtf.toString()}::${fasta.toString()}", gtf, fasta, combined_fa, combined_gtf, idx) }
+        .map{ gtf, fasta, combined_fa, combined_gtf, idx -> tuple(makeKey(gtf, fasta), gtf, fasta, combined_fa, combined_gtf, idx) }
 
     // Diagnostic: show joint_keyed contents if available
     if (binding.hasVariable('joint_keyed') && joint_keyed) {
@@ -384,9 +392,22 @@ workflow {
     }
 
     // Pair FASTX combined and reverse outputs per sample
-    // FASTX now emits a single `fastx_pair` channel: [ sample, combined, reverse ]
+    // FASTX now emits: [ sample, combined, reverse, gtf, fasta, library ]
     fastx_pairs = FASTX.out.fastx_pair
-        .map{ sample, combined, reverse -> tuple(sample, combined, reverse) }
+        .map{ row ->
+            if (row instanceof List && row.size() >= 6) {
+                def sample = row[0]
+                def combined = row[1]
+                def reverse = row[2]
+                def gtf = row[3]
+                def fasta = row[4]
+                def library = row[5]
+                tuple(sample, combined, reverse, gtf, fasta, library)
+            } else {
+                println "Warning: unexpected fastx_pair shape: ${row}"
+                return row
+            }
+        }
 
     // Diagnostic: show fastx_pairs contents if available
     if (binding.hasVariable('fastx_pairs') && fastx_pairs) {
@@ -396,16 +417,10 @@ workflow {
     }
 
     // Attach sample metadata (gtf,fasta,library) to FASTX outputs and key by gtf::fasta
+    // fastx_pairs already includes metadata; map to keyed tuples directly
     fastx_with_meta = fastx_pairs
-        .join( METADATA.out.data.map{ sample, fastq1, fastq2, gtf, fasta, library -> tuple(sample, gtf, fasta, library) } )
-        .map{ left, right ->
-            sample = left[0]
-            combined = left[1]
-            reverse = left[2]
-            gtf = right[1]
-            fasta = right[2]
-            library = right[3]
-            key = "${gtf.toString()}::${fasta.toString()}"
+        .map{ sample, combined, reverse, gtf, fasta, library ->
+            key = makeKey(gtf, fasta)
             tuple(key, sample, combined, reverse, gtf, fasta, library)
         }
 
