@@ -352,7 +352,7 @@ process STAR_PREMAP {
 }
 
 // Main pipeline
-workflow main_pipeline {
+workflow {
     
     // Run the METADATA workflow
     METADATA(params.input)
@@ -368,38 +368,24 @@ workflow main_pipeline {
     joined_for_fastx = METADATA.out.data.join(FLASH.out.mergedfastq)
     FASTX(joined_for_fastx)
 
-    // --- Key STAR_JOINT_INDEX outputs ---
+    // Key STAR_JOINT_INDEX outputs
     joint_keyed = STAR_JOINT_INDEX.out.jointindex
         .map { gtf, fasta, jindex -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", jindex) }
         .groupTuple()   // Each key maps to a list of joint index files
     joint_keyed.view { "STAR jointindex keyed: ${it}" }
 
-    // --- Key FASTX outputs ---
+    // Key FASTX outputs
     fastx_keyed = FASTX.out.fastx_pair
-        .map { sample, combined, reverse, gtf, fasta, library ->
-            tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", sample, combined, reverse)
-        }
+        .map { sample, combined, reverse, gtf, fasta, library -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", sample, combined, reverse) }
     fastx_keyed.view { "FASTX fastx_pair keyed: ${it}" }
 
-    // --- Combine channels and filter for matching keys ---
-    joined_for_premap = fastx_keyed
-        .combine(joint_keyed)  // Cartesian product of both channels
-        .map { fx, jk ->
-            key_fx, sample, combined, reverse = fx
-            key_jk, jindex_list = jk
-            if (key_fx == key_jk) {
-                jindex = jindex_list[0]  // extract single joint index
-                tuple(sample, combined, reverse, jindex)
-            } else {
-                null
-            }
-        }
-        .filter { it != null }  // remove non-matching combinations
+    // Combine channels and filter for matching keys
+    joined_for_premap = fastx_keyed.combine(joint_keyed, by: 0)  // Cartesian product of both channels, by first element (the key)
 
     // Optional: view to check
-    joined_for_premap.view { "STAR_PREMAP input (all samples): ${it}" }
+    joined_for_premap.view { "STAR_PREMAP input: ${it}" }
 
-    // --- Run STAR_PREMAP ---
+    // Run STAR_PREMAP
     STAR_PREMAP(joined_for_premap)
 
 }
