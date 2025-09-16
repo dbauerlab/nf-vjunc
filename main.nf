@@ -331,7 +331,7 @@ process STAR_PREMAP {
     container 'quay.io/biocontainers/star:2.7.11b--h5ca1c30_7'
 
     input:
-        tuple val(key), val(sample), path(combined), path(reverse), path(joint_index)
+        tuple val(sample), path(combined), path(reverse), path(joint_index)
 
     output:
         tuple val(sample), path("${sample}_premap.bam"), emit: premap_bam
