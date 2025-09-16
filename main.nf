@@ -369,6 +369,30 @@ workflow {
     joined_for_fastx = METADATA.out.data.join(FLASH.out.mergedfastq)
     FASTX(joined_for_fastx)
 
+    // --- Key STAR_JOINT_INDEX outputs by composite key ---
+    joint_keyed = STAR_JOINT_INDEX.out.jointindex
+        .map { gtf, fasta, jindex -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", jindex) }
+        .groupTuple()  // Each key maps to a list of joint index files (should be 1 per reference)
+    joint_keyed.view { "STAR jointindex keyed: ${it}" }
+
+    // --- Key FASTX outputs the same way ---
+    fastx_keyed = FASTX.out.fastx_pair
+        .map { sample, combined, reverse, gtf, fasta, library ->
+            tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", sample, combined, reverse)
+        }
+    fastx_keyed.view { "FASTX fastx_pair keyed: ${it}" }
+
+    // --- Join FASTX samples with their corresponding joint index ---
+    joined_for_premap = fastx_keyed
+        .join(joint_keyed)  // join on composite key
+        .map { key, sample, combined, reverse, jindex_list ->
+            jindex = jindex_list[0]  // extract single joint index
+            tuple(sample, combined, reverse, jindex)
+        }
+
+    // Optional: view to check
+    joined_for_premap.view { "STAR_PREMAP input: ${it}" }
+
     // Give keys to STAR_JOINT_INDEX and FASTX outputs
     // Build a channel keyed by a composite key "gtf::fasta" so joins are unambiguous
     //joint_keyed = STAR_JOINT_INDEX.out.jointindex
@@ -377,17 +401,17 @@ workflow {
     //    .map{ sample, combined, reverse, gtf, fasta, library -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", sample, combined, reverse) }
 
     // Create a map of joint index by key
-    joint_map = STAR_JOINT_INDEX.out.jointindex
-        .map { gtf, fasta, jindex -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", jindex) }
-        .toMap()
+    //joint_map = STAR_JOINT_INDEX.out.jointindex
+    //    .map { gtf, fasta, jindex -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", jindex) }
+    //    .groupTuple()
 
     // Attach joint index to each sample
-    joined_for_premap = FASTX.out.fastx_pair
-        .map { sample, combined, reverse, gtf, fasta, library ->
-            key = "${gtf.getName()}::${fasta.getName()}"
-            jindex = joint_map[key]
-            tuple(sample, combined, reverse, jindex)
-    }
+    //joined_for_premap = FASTX.out.fastx_pair
+    //    .map { sample, combined, reverse, gtf, fasta, library ->
+    //        key = "${gtf.getName()}::${fasta.getName()}"
+    //        jindex = joint_map[key]
+    //        tuple(sample, combined, reverse, jindex)
+    //}
 
     // View keyed channels for troubleshooting
     //joint_keyed.view { "STAR jointindex keyed: ${it}" }
@@ -395,7 +419,7 @@ workflow {
 
     // Join FASTX and STAR_JOINT_INDEX on the composite key and view
     //joined_for_premap = fastx_keyed.join(joint_keyed)
-    joined_for_premap.view { "JOINED: ${it}" }
+    //joined_for_premap.view { "JOINED: ${it}" }
 
     // Run premap
     //STAR_PREMAP(joined_for_premap)
