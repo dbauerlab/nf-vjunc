@@ -331,10 +331,10 @@ process STAR_PREMAP {
     container 'quay.io/biocontainers/star:2.7.11b--h5ca1c30_7'
 
     input:
-        tuple val(sample), path(combined), path(reverse), path(gtf), path(fasta), val(library), path(joint_combined_fa), path(joint_combined_gtf), path(joint_index)
+        tuple val(key), val(sample), path(combined), path(reverse), path(gtf1), path(fasta1), val(library), path(gtf2), path(fasta2), path(joint_index)
 
     output:
-        tuple val(sample), path(bam), emit: premap_bam
+        tuple val(sample), path("${sample}_premap.bam"), emit: premap_bam
 
     script:
     """
@@ -346,10 +346,21 @@ process STAR_PREMAP {
         --twopassMode Basic \
         --outReadsUnmapped None \
         --outSAMunmapped Within \
-        --outSAMtype BAM Unsorted
+        --outSAMtype BAM Unsorted > ${sample}_premap.bam
     """
 
 }
+
+[transcripts.gtf::beta.fa, 
+DA-Mock-F9-SIRV4-1, 
+/nemo/stp/babs/working/bootj/projects/testbed/james.boot/nf-vjunc/work/70/f7f16d9e4b9fdcd20919c6d18ee43e/DA-Mock-F9-SIRV4-1.combined.fastq.gz, 
+/nemo/stp/babs/working/bootj/projects/testbed/james.boot/nf-vjunc/work/70/f7f16d9e4b9fdcd20919c6d18ee43e/DA-Mock-F9-SIRV4-1.combined.reverse.fastq.gz, 
+transcripts.gtf, 
+beta.fa, 
+A, 
+/nemo/stp/babs/working/bootj/projects/testbed/james.boot/nf-vjunc/work/6e/6f22f60eb5d07d0e0a81142f932633/transcripts.gtf, 
+/nemo/stp/babs/working/bootj/projects/testbed/james.boot/nf-vjunc/work/6e/6f22f60eb5d07d0e0a81142f932633/beta.fa, 
+/nemo/stp/babs/working/bootj/projects/testbed/james.boot/nf-vjunc/work/6e/6f22f60eb5d07d0e0a81142f932633/beta_Chlorocebus_sabaeus.joint.index]
 
 
 // Main pipeline
@@ -359,7 +370,7 @@ workflow {
     // Run the METADATA workflow
     METADATA(params.input)
 
-    // Run the processes
+    // Run the initial processes
     TRIMGALORE(METADATA.out.data)
     STAR_VIRAL_INDEX(METADATA.out.refs)
     STAR_JOINT_INDEX(METADATA.out.refs)
@@ -381,13 +392,11 @@ workflow {
     joint_keyed.view { "STAR jointindex keyed: ${it}" }
     fastx_keyed.view { "FASTX fastx_pair keyed: ${it}" }
 
-    //joined_for_premap = fastx_keyed.combine(joint_keyed)
-    //joined_for_premap.view { "COMBINED: ${it}" }
-
-    //joined_for_premap.collect().view { all -> "JOINED ALL: ${all}" }
-
     // Join FASTX and STAR_JOINT_INDEX on the composite key and view
     joined_for_premap = fastx_keyed.join(joint_keyed)
     joined_for_premap.view { "JOINED: ${it}" }
+
+    // Run premap
+    STAR_PREMAP(joined_for_premap)
 
     }
