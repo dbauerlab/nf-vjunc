@@ -352,7 +352,7 @@ process STAR_PREMAP {
 }
 
 // Main pipeline
-workflow {
+workflow main_pipeline {
     
     // Run the METADATA workflow
     METADATA(params.input)
