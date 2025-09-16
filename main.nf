@@ -43,7 +43,7 @@ process STAR_VIRAL_INDEX {
         tuple path(gtf), path(fasta)
     
     output:
-        tuple path(fasta), path(gtf), path("*.index"), emit: viralindex
+        tuple path(gtf), path(fasta), path("*.index"), emit: viralindex
 
     script:
     """
@@ -86,7 +86,7 @@ process STAR_JOINT_INDEX {
         tuple path(gtf), path(fasta)
     
     output:
-        tuple path("*combined.fa"), path("*combined.gtf"), path("*.index"), emit: jointindex
+        tuple path(gtf), path(fasta), path("*.index"), emit: jointindex
 
     script:
     """
@@ -342,8 +342,87 @@ workflow {
     FLASH(HARDTRIM.out.clippedfastq)
     joined_for_fastx = METADATA.out.data.join(FLASH.out.mergedfastq)
     FASTX(joined_for_fastx)
-    
 
-}
+    // Collect index outputs and attach them to each sample so every sample has
+    // the corresponding viral index path and joint index path.
+    viral_idx = STAR_VIRAL_INDEX.out.viralindex
+    joint_idx = STAR_JOINT_INDEX.out.jointindex
+
+    // Build a channel keyed by a composite key "gtf::fasta" so joins are unambiguous
+    viral_keyed = viral_idx
+        .map{ gtf, fasta, vindex -> tuple("${gtf.toString()}::${fasta.toString()}", gtf, fasta, vindex) }
+
+    joint_keyed = joint_idx
+        .map{ gtf, fasta, jindex -> tuple("${gtf.toString()}::${fasta.toString()}", gtf, fasta, jindex) }
+
+    // Join viral and joint indexes on the composite key and keep both index outputs
+    indexed_refs = viral_keyed
+        .join(joint_keyed)
+        .map{ left, right ->
+            key = left[0]
+            gtf = left[1]
+            fasta = left[2]
+            viral_index = left[3]
+            joint_index = right[3]
+            tuple(key, gtf, fasta, viral_index, joint_index)
+        }
+        .set { indexed_refs }
+
+    // Join FASTX outputs with the indexed references using the same composite key.
+    // Assume FASTX emits: tuple(sample, combinedfastq, reversefastq)
+    // We'll need to join on sample, gtf, fasta, and library, so we must propagate those fields through FASTX input.
+    // If FASTX input is joined_for_fastx, which is METADATA.out.data.join(FLASH.out.mergedfastq),
+    // then FASTX output tuples will be: [sample, combinedfastq, reversefastq]
+    // We'll join with METADATA.out.data to recover gtf/fasta/library for the sample.
+
+    // Build a channel with sample, combinedfastq, reversefastq, gtf, fasta, library
+    // Join the two FASTX output channels (combined and reverse) by sample first
+    fastx_pairs = FASTX.out.combinedfastq
+        .join(FASTX.out.reversefastq)
+        .map{ left, right ->
+            // left: [sample, combinedfastq]
+            // right: [sample, reversefastq]
+            sample = left[0]
+            combinedfastq = left[1]
+            reversefastq = right[1]
+            tuple(sample, combinedfastq, reversefastq)
+        }
+
+    // Attach metadata (gtf, fasta, library) to the FASTX pairs by sample
+    fastx_with_meta = fastx_pairs
+        .join( METADATA.out.data.map{ sample, fastq1, fastq2, gtf, fasta, library -> tuple(sample, gtf, fasta, library) } )
+        .map{ left, right ->
+            // left: [sample, combinedfastq, reversefastq]
+            // right: [sample, gtf, fasta, library]
+            sample = left[0]
+            combinedfastq = left[1]
+            reversefastq = left[2]
+            gtf = right[1]
+            fasta = right[2]
+            library = right[3]
+            tuple("${gtf.toString()}::${fasta.toString()}", sample, combinedfastq, reversefastq, gtf, fasta, library)
+        }
+
+    // Now join fastx_with_meta with indexed_refs on the composite key
+    aligned_inputs = fastx_with_meta
+        .join(indexed_refs)
+        .map{ left, right ->
+            // left: [key, sample, combinedfastq, reversefastq, gtf, fasta, library]
+            // right: [key, gtf, fasta, viral_index, joint_index]
+            sample = left[1]
+            combinedfastq = left[2]
+            reversefastq = left[3]
+            gtf = left[4]
+            fasta = left[5]
+            library = left[6]
+            viral_index = right[3]
+            joint_index = right[4]
+            tuple(sample, combinedfastq, reversefastq, gtf, fasta, library, viral_index, joint_index)
+        }
+        .set { aligned_inputs }
+    
+    aligned_inputs.view { v -> "Final aligned inputs channel: ${v}" }
+
+    }
 
 
