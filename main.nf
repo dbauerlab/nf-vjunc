@@ -77,8 +77,6 @@ process STAR_JOINT_INDEX {
     tag "$fasta"
     label 'process_high'
     publishDir "${params.outdir}/indices", mode: 'copy', overwrite: true, pattern: '*.index'
-    publishDir "${params.outdir}/joint_fasta", mode: 'copy',  overwrite: true, pattern: '*.fa'
-    publishDir "${params.outdir}/joint_gtf", mode: 'copy',  overwrite: true, pattern: '*.gtf'
 
     container 'quay.io/biocontainers/star:2.7.11b--h5ca1c30_7'
 
@@ -86,7 +84,7 @@ process STAR_JOINT_INDEX {
         tuple path(gtf), path(fasta)
     
     output:
-        tuple path(gtf), path(fasta), path("*combined.fa"), path("*combined.gtf"), path("*.index"), emit: jointindex
+        tuple path(gtf), path(fasta), path("*.index"), emit: jointindex
 
     script:
     """
@@ -292,7 +290,7 @@ process FASTX {
     
     output:
         // Emit a single paired channel containing both combined and reverse fastq paths
-            tuple val(sample), path("${sample}.combined.fastq.gz"), path("${sample}.combined.reverse.fastq.gz"), val(gtf), val(fasta), val(library), emit: fastx_pair
+        tuple val(sample), path("${sample}.combined.fastq.gz"), path("${sample}.combined.reverse.fastq.gz"), val(gtf), val(fasta), val(library), emit: fastx_pair
 
     script:
     """
@@ -358,13 +356,6 @@ process STAR_PREMAP {
 
 workflow {
     
-    // Helper to build a normalized key from gtf and fasta paths
-    def makeKey = { gtfPath, fastaPath ->
-        def g = new File(gtfPath.toString()).canonicalPath
-        def f = new File(fastaPath.toString()).canonicalPath
-        return "${g}::${f}"
-    }
-
     // Run the METADATA workflow
     METADATA(params.input)
     // METADATA.out.view { v -> "Channel is ${v}" }
@@ -379,84 +370,7 @@ workflow {
     FLASH(HARDTRIM.out.clippedfastq)
     joined_for_fastx = METADATA.out.data.join(FLASH.out.mergedfastq)
     FASTX(joined_for_fastx)
-
-    // Build joint index keyed by original gtf::fasta so we can match it to samples
-    joint_keyed = STAR_JOINT_INDEX.out.jointindex
-        .map{ gtf, fasta, combined_fa, combined_gtf, idx -> tuple(makeKey(gtf, fasta), gtf, fasta, combined_fa, combined_gtf, idx) }
-
-    // Diagnostic: show joint_keyed contents if available
-    if (binding.hasVariable('joint_keyed') && joint_keyed) {
-        joint_keyed.view { v -> "joint_keyed: ${v}" }
-    } else {
-        println "Warning: joint_keyed channel is null/empty"
-    }
-
-    // Pair FASTX combined and reverse outputs per sample
-    // FASTX now emits: [ sample, combined, reverse, gtf, fasta, library ]
-    fastx_pairs = FASTX.out.fastx_pair
-        .map{ row ->
-            if (row instanceof List && row.size() >= 6) {
-                def sample = row[0]
-                def combined = row[1]
-                def reverse = row[2]
-                def gtf = row[3]
-                def fasta = row[4]
-                def library = row[5]
-                tuple(sample, combined, reverse, gtf, fasta, library)
-            } else {
-                println "Warning: unexpected fastx_pair shape: ${row}"
-                return row
-            }
-        }
-
-    // Diagnostic: show fastx_pairs contents if available
-    if (binding.hasVariable('fastx_pairs') && fastx_pairs) {
-        fastx_pairs.view { v -> "fastx_pairs: ${v}" }
-    } else {
-        println "Warning: fastx_pairs channel is null/empty"
-    }
-
-    // Attach sample metadata (gtf,fasta,library) to FASTX outputs and key by gtf::fasta
-    // fastx_pairs already includes metadata; map to keyed tuples directly
-    fastx_with_meta = fastx_pairs
-        .map{ sample, combined, reverse, gtf, fasta, library ->
-            key = makeKey(gtf, fasta)
-            tuple(key, sample, combined, reverse, gtf, fasta, library)
-        }
-
-    // Diagnostic: show fastx_with_meta contents if available
-    if (binding.hasVariable('fastx_with_meta') && fastx_with_meta) {
-        fastx_with_meta.view { v -> "fastx_with_meta: ${v}" }
-    } else {
-        println "Warning: fastx_with_meta channel is null/empty"
-    }
-
-    // Join FASTX+meta with joint index so each sample receives the matching joint index path
-    aligned_inputs = fastx_with_meta
-        .join(joint_keyed)
-        .map{ left, right ->
-            // left: [key, sample, combined, reverse, gtf, fasta, library]
-            // right: [key, gtf, fasta, combined_fa, combined_gtf, idx]
-            sample = left[1]
-            combined = left[2]
-            reverse = left[3]
-            gtf = left[4]
-            fasta = left[5]
-            library = left[6]
-            joint_combined_fa = right[3]
-            joint_combined_gtf = right[4]
-            joint_index = right[5]
-            tuple(sample, combined, reverse, gtf, fasta, library, joint_combined_fa, joint_combined_gtf, joint_index)
-        }
-        .set { aligned_inputs }
+    joined_for_premap = FASTX.out.fastx_pair.join(STAR_JOINT_INDEX.out.jointindex)
+    joined_for_premap.collectFile(name: 'joined_for_premap.txt', overwrite: true)
     
-    // Print a single collected summary after upstream closes. collect() buffers all items in memory.
-    if (aligned_inputs) {
-        aligned_inputs
-            .collect()
-            .view { v -> "Aligned inputs (all): ${v}" }
-    } else {
-        println "Warning: aligned_inputs channel is null/empty; skipping collect/view"
-    }
-
     }
