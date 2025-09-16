@@ -352,7 +352,6 @@ process STAR_PREMAP {
 }
 
 // Main pipeline
-
 workflow {
     
     // Run the METADATA workflow
