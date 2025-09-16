@@ -403,4 +403,4 @@ workflow {
     // --- Run STAR_PREMAP ---
     STAR_PREMAP(joined_for_premap)
 
-    }
+}
