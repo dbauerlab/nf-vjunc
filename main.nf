@@ -351,18 +351,6 @@ process STAR_PREMAP {
 
 }
 
-[transcripts.gtf::beta.fa, 
-DA-Mock-F9-SIRV4-1, 
-/nemo/stp/babs/working/bootj/projects/testbed/james.boot/nf-vjunc/work/70/f7f16d9e4b9fdcd20919c6d18ee43e/DA-Mock-F9-SIRV4-1.combined.fastq.gz, 
-/nemo/stp/babs/working/bootj/projects/testbed/james.boot/nf-vjunc/work/70/f7f16d9e4b9fdcd20919c6d18ee43e/DA-Mock-F9-SIRV4-1.combined.reverse.fastq.gz, 
-transcripts.gtf, 
-beta.fa, 
-A, 
-/nemo/stp/babs/working/bootj/projects/testbed/james.boot/nf-vjunc/work/6e/6f22f60eb5d07d0e0a81142f932633/transcripts.gtf, 
-/nemo/stp/babs/working/bootj/projects/testbed/james.boot/nf-vjunc/work/6e/6f22f60eb5d07d0e0a81142f932633/beta.fa, 
-/nemo/stp/babs/working/bootj/projects/testbed/james.boot/nf-vjunc/work/6e/6f22f60eb5d07d0e0a81142f932633/beta_Chlorocebus_sabaeus.joint.index]
-
-
 // Main pipeline
 
 workflow {
