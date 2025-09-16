@@ -369,9 +369,20 @@ workflow {
     FLASH(HARDTRIM.out.clippedfastq)
     joined_for_fastx = METADATA.out.data.join(FLASH.out.mergedfastq)
     FASTX(joined_for_fastx)
-    FASTX.out.fastx_pair.view { "FASTX fastx_pair: ${it}" }
-    STAR_JOINT_INDEX.out.jointindex.view { "STAR jointindex: ${it}" }
-    joined_for_premap = FASTX.out.fastx_pair.join(STAR_JOINT_INDEX.out.jointindex)
+
+    // Give keys to STAR_JOINT_INDEX and FASTX outputs
+    // Build a channel keyed by a composite key "gtf::fasta" so joins are unambiguous
+    joint_keyed = STAR_JOINT_INDEX.out.jointindex
+        .map{ gtf, fasta, jindex -> tuple("${gtf.toString()}::${fasta.toString()}", gtf, fasta, jindex) }
+    fastx_keyed = FASTX.out.fastx_pair
+        .map{ sample, combined, reverse, gtf, fasta, library -> tuple("${gtf.toString()}::${fasta.toString()}", sample, combined, reverse, gtf, fasta, library) }
+
+    // View keyed channels for troubleshooting
+    joint_keyed.view { "STAR jointindex keyed: ${it}" }
+    fastx_keyed.view { "FASTX fastx_pair keyed: ${it}" }
+
+    // Join FASTX and STAR_JOINT_INDEX on the composite key and view
+    joined_for_premap = fastx_keyed.join(joint_keyed)
     joined_for_premap.view { v -> "Channel is ${v}" }
 
     }
