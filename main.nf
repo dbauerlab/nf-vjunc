@@ -369,6 +369,8 @@ workflow {
     FLASH(HARDTRIM.out.clippedfastq)
     joined_for_fastx = METADATA.out.data.join(FLASH.out.mergedfastq)
     FASTX(joined_for_fastx)
+    FASTX.out.fastx_pair.view { "FASTX fastx_pair: ${it}" }
+    STAR_JOINT_INDEX.out.jointindex.view { "STAR jointindex: ${it}" }
     joined_for_premap = FASTX.out.fastx_pair.join(STAR_JOINT_INDEX.out.jointindex)
     joined_for_premap.view { v -> "Channel is ${v}" }
 
