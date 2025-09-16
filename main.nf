@@ -372,9 +372,9 @@ workflow {
     // Give keys to STAR_JOINT_INDEX and FASTX outputs
     // Build a channel keyed by a composite key "gtf::fasta" so joins are unambiguous
     joint_keyed = STAR_JOINT_INDEX.out.jointindex
-        .map{ gtf, fasta, jindex -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", gtf, fasta, jindex) }
+        .map{ gtf, fasta, jindex -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", jindex) }
     fastx_keyed = FASTX.out.fastx_pair
-        .map{ sample, combined, reverse, gtf, fasta, library -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", sample, combined, reverse, gtf, fasta, library) }
+        .map{ sample, combined, reverse, gtf, fasta, library -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", sample, combined, reverse) }
 
     // View keyed channels for troubleshooting
     joint_keyed.view { "STAR jointindex keyed: ${it}" }
