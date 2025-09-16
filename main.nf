@@ -373,16 +373,21 @@ workflow {
     // Give keys to STAR_JOINT_INDEX and FASTX outputs
     // Build a channel keyed by a composite key "gtf::fasta" so joins are unambiguous
     joint_keyed = STAR_JOINT_INDEX.out.jointindex
-        .map{ gtf, fasta, jindex -> tuple("${gtf.name}::${fasta.name}", gtf, fasta, jindex) }
+        .map{ gtf, fasta, jindex -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", gtf, fasta, jindex) }
     fastx_keyed = FASTX.out.fastx_pair
-        .map{ sample, combined, reverse, gtf, fasta, library -> tuple("${gtf.name}::${fasta.name}", sample, combined, reverse, gtf, fasta, library) }
+        .map{ sample, combined, reverse, gtf, fasta, library -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", sample, combined, reverse, gtf, fasta, library) }
 
     // View keyed channels for troubleshooting
     joint_keyed.view { "STAR jointindex keyed: ${it}" }
     fastx_keyed.view { "FASTX fastx_pair keyed: ${it}" }
 
+    joined_for_premap = fastx_keyed.combine(joint_keyed)
+    joined_for_premap.view { "COMBINED: ${it}" }
+
+    joined_for_premap.collect().view { all -> "JOINED ALL: ${all}" }
+
     // Join FASTX and STAR_JOINT_INDEX on the composite key and view
-    joined_for_premap = fastx_keyed.join(joint_keyed)
-    joined_for_premap.view { v -> "Channel is ${v}" }
+    //joined_for_premap = fastx_keyed.join(joint_keyed)
+    //joined_for_premap.view { v -> "Channel is ${v}" }
 
     }
