@@ -43,7 +43,7 @@ process STAR_VIRAL_INDEX {
         tuple path(gtf), path(fasta)
     
     output:
-        tuple path(gtf), path(fasta), path("*.index"), emit: viralindex
+        tuple path(fasta), path(gtf), path("*.index"), emit: viralindex
 
     script:
     """
@@ -58,7 +58,7 @@ process STAR_VIRAL_INDEX {
 
     # compute genomeSAindexNbases using recommended heuristic:
     # genomeSAindexNbases = min(14, max(4, int(log2(genomeLength)/2 - 1)))
-    saIndex=\$(awk -v L=\"\${genlen}\" 'BEGIN{ if(L<=0){print 14; exit} g=log(L)/log(2); v=int(g/2 - 1); if(v<4) v=4; if(v>14) v=14; print v }')
+    saIndex=\$(awk -v L="\${genlen}" 'BEGIN{ if(L<=0){print 14; exit} g=log(L)/log(2); v=int(g/2 - 1); if(v<4) v=4; if(v>14) v=14; print v }')
 
     echo "Genome length: \${genlen}, using genomeSAindexNbases=\${saIndex}"
 
@@ -86,7 +86,7 @@ process STAR_JOINT_INDEX {
         tuple path(gtf), path(fasta)
     
     output:
-        tuple path(gtf), path(fasta), path("*.index"), emit: jointindex
+        tuple path("*combined.fa"), path("*combined.gtf"), path("*.index"), emit: jointindex
 
     script:
     """
@@ -113,7 +113,7 @@ process STAR_JOINT_INDEX {
 
     # helper: cat or gunzip -c depending on file extension
     cat_or_zcat() {
-        f=\"\$1\"
+        f="\$1"
         case "\$f" in
             *.gz) gunzip -c "\$f" ;; 
             *) cat "\$f" ;;
