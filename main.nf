@@ -440,11 +440,13 @@ workflow {
         }
         .set { aligned_inputs }
     
-    // Guard the view call: aligned_inputs may be null if upstream channels produced no output
+    // Print a single collected summary after upstream closes. collect() buffers all items in memory.
     if (aligned_inputs) {
-        aligned_inputs.view { v -> "Aligned inputs: ${v}" }
+        aligned_inputs
+            .collect()
+            .view { v -> "Aligned inputs (all): ${v}" }
     } else {
-        println "Warning: aligned_inputs channel is null/empty; skipping view()"
+        println "Warning: aligned_inputs channel is null/empty; skipping collect/view"
     }
 
     }
