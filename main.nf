@@ -86,7 +86,7 @@ process STAR_JOINT_INDEX {
         tuple path(gtf), path(fasta)
     
     output:
-        tuple path("*combined.fa"), path("*combined.gtf"), path("*.index"), emit: jointindex
+        tuple path(gtf), path(fasta), path("*combined.fa"), path("*combined.gtf"), path("*.index"), emit: jointindex
 
     script:
     """
@@ -342,5 +342,54 @@ workflow {
     FLASH(HARDTRIM.out.clippedfastq)
     joined_for_fastx = METADATA.out.data.join(FLASH.out.mergedfastq)
     FASTX(joined_for_fastx)
+
+    // Build joint index keyed by original gtf::fasta so we can match it to samples
+    joint_keyed = STAR_JOINT_INDEX.out.jointindex
+        .map{ gtf, fasta, combined_fa, combined_gtf, idx -> tuple("${gtf.toString()}::${fasta.toString()}", gtf, fasta, combined_fa, combined_gtf, idx) }
+
+    // Pair FASTX combined and reverse outputs per sample
+    fastx_pairs = FASTX.out.combinedfastq
+        .join(FASTX.out.reversefastq)
+        .map{ left, right ->
+            sample = left[0]
+            combined = left[1]
+            reverse = right[1]
+            tuple(sample, combined, reverse)
+        }
+
+    // Attach sample metadata (gtf,fasta,library) to FASTX outputs and key by gtf::fasta
+    fastx_with_meta = fastx_pairs
+        .join( METADATA.out.data.map{ sample, fastq1, fastq2, gtf, fasta, library -> tuple(sample, gtf, fasta, library) } )
+        .map{ left, right ->
+            sample = left[0]
+            combined = left[1]
+            reverse = left[2]
+            gtf = right[1]
+            fasta = right[2]
+            library = right[3]
+            key = "${gtf.toString()}::${fasta.toString()}"
+            tuple(key, sample, combined, reverse, gtf, fasta, library)
+        }
+
+    // Join FASTX+meta with joint index so each sample receives the matching joint index path
+    aligned_inputs = fastx_with_meta
+        .join(joint_keyed)
+        .map{ left, right ->
+            // left: [key, sample, combined, reverse, gtf, fasta, library]
+            // right: [key, gtf, fasta, combined_fa, combined_gtf, idx]
+            sample = left[1]
+            combined = left[2]
+            reverse = left[3]
+            gtf = left[4]
+            fasta = left[5]
+            library = left[6]
+            joint_combined_fa = right[3]
+            joint_combined_gtf = right[4]
+            joint_index = right[5]
+            tuple(sample, combined, reverse, gtf, fasta, library, joint_combined_fa, joint_combined_gtf, joint_index)
+        }
+        .set { aligned_inputs }
+    
+    aligned_inputs.view { v -> "Aligned inputs: ${v}" }
 
     }
