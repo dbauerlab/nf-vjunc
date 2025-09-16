@@ -371,6 +371,6 @@ workflow {
     joined_for_fastx = METADATA.out.data.join(FLASH.out.mergedfastq)
     FASTX(joined_for_fastx)
     joined_for_premap = FASTX.out.fastx_pair.join(STAR_JOINT_INDEX.out.jointindex)
-    joined_for_premap.view { v -> "Channel is ${v}" }
+    joined_for_premap.collect().view { v -> "Channel is ${v}" }
     
     }
