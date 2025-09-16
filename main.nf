@@ -375,7 +375,7 @@ workflow {
     joint_keyed = STAR_JOINT_INDEX.out.jointindex
         .map{ gtf, fasta, jindex -> tuple("${gtf.name}::${fasta.name}", gtf, fasta, jindex) }
     fastx_keyed = FASTX.out.fastx_pair
-        .map{ sample, combined, reverse, gtf, fasta, library -> ttuple("${gtf.name}::${fasta.name}", sample, combined, reverse, gtf, fasta, library) }
+        .map{ sample, combined, reverse, gtf, fasta, library -> tuple("${gtf.name}::${fasta.name}", sample, combined, reverse, gtf, fasta, library) }
 
     // View keyed channels for troubleshooting
     joint_keyed.view { "STAR jointindex keyed: ${it}" }
