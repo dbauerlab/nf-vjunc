@@ -381,13 +381,13 @@ workflow {
     joint_keyed.view { "STAR jointindex keyed: ${it}" }
     fastx_keyed.view { "FASTX fastx_pair keyed: ${it}" }
 
-    joined_for_premap = fastx_keyed.combine(joint_keyed)
-    joined_for_premap.view { "COMBINED: ${it}" }
+    //joined_for_premap = fastx_keyed.combine(joint_keyed)
+    //joined_for_premap.view { "COMBINED: ${it}" }
 
-    joined_for_premap.collect().view { all -> "JOINED ALL: ${all}" }
+    //joined_for_premap.collect().view { all -> "JOINED ALL: ${all}" }
 
     // Join FASTX and STAR_JOINT_INDEX on the composite key and view
-    //joined_for_premap = fastx_keyed.join(joint_keyed)
-    //joined_for_premap.view { v -> "Channel is ${v}" }
+    joined_for_premap = fastx_keyed.join(joint_keyed)
+    joined_for_premap.view { "JOINED: ${it}" }
 
     }
