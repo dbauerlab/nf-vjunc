@@ -331,7 +331,7 @@ process STAR_PREMAP {
     container 'quay.io/biocontainers/star:2.7.11b--h5ca1c30_7'
 
     input:
-        tuple val(sample), path(combined), path(reverse), path(joint_index)
+        tuple val(key), val(sample), path(combined), path(reverse), path(joint_index)
 
     output:
         tuple val(sample), path("${sample}_premap.bam"), emit: premap_bam
@@ -371,7 +371,6 @@ workflow {
     // Key STAR_JOINT_INDEX outputs
     joint_keyed = STAR_JOINT_INDEX.out.jointindex
         .map { gtf, fasta, jindex -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", jindex) }
-        .groupTuple()   // Each key maps to a list of joint index files
     joint_keyed.view { "STAR jointindex keyed: ${it}" }
 
     // Key FASTX outputs
