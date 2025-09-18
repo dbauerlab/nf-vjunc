@@ -480,7 +480,7 @@ process SAMTOOLS_VIRAL {
     samtools index ${sample}.spliced.bam
 
     # Calculate CPM factor for all reads
-    CPM_FACTOR_ALLREADS=\$(bc <<< "scale=6;1000000/$(samtools view -f 0 -c ${sample}.spliced.bam)")
+    CPM_FACTOR_ALLREADS=\$(bc <<< "scale=6;1000000/\$(samtools view -f 0 -c ${sample}.spliced.bam)")
     echo "\$CPM_FACTOR_ALLREADS" > ${sample}.cpm.txt
     """
 }
