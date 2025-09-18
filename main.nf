@@ -290,7 +290,7 @@ process FASTX {
     
     output:
         // Emit a single paired channel containing both combined and reverse fastq paths
-        tuple val(sample), path("${sample}.combined.fastq.gz"), path("${sample}.combined.reverse.fastq.gz"), val(gtf), val(fasta), val(library), emit: fastx_pair
+        tuple val(sample), path("${sample}.combined.fastq.gz"), path("${sample}.combined.reverse.fastq.gz"), path(gtf), path(fasta), val(library), emit: fastx_pair
 
     script:
     """
@@ -331,10 +331,10 @@ process STAR_PREMAP {
     container 'quay.io/biocontainers/star:2.7.11b--h5ca1c30_7'
 
     input:
-        tuple val(key), val(sample), path(combined), path(reverse), path(joint_index)
+        tuple val(key), val(sample), path(combined), path(reverse), path(fasta), path(gtf), path(joint_index)
 
     output:
-        tuple val(sample), path("${sample}_premap.bam"), emit: premap_bam
+        tuple val(sample), path(fasta), path(gtf), path("${sample}_premap.bam"), emit: premap_bam
 
     script:
     """
@@ -351,13 +351,50 @@ process STAR_PREMAP {
 
 }
 
+process SAMTOOLS {
+    
+    tag "$sample"
+    label 'process_medium'
+    publishDir "${params.outdir}/samtools", mode: 'copy', overwrite: true
+
+    container 'quay.io/biocontainers/samtools:1.22.1--h96c455f_0'
+
+    input:
+        tuple val(sample), path(fasta), path(gtf), path(bam)
+
+    output:
+        tuple val(sample), path("${sample}.idxstats"), path("${sample}.flagstat"), path("${sample}.coverage.txt"), emit: stats
+        tuple val(sample), path(fasta), path(gtf), path("${sample}.viral.bam"), path("${sample}.viral.fastq.gz"), emit: viral
+        tuple val(sample), path("${sample}.unmapped.bam"), path("${sample}.unmapped.fastq.gz"), emit: unmapped
+
+    script:
+    """
+    VIRAL_CHR=\$(grep '^>' ${fasta} | sed 's/ .*//' | sed 's/>//' | tr -d '[:space:]' | tr '\n' ' ' | tr '\r' ' ')
+
+    # Sort, index, and generate stats on the pre-mapping BAM file
+    samtools sort --threads $task.cpus -o ${sample}.sorted.bam $bam
+    samtools index ${sample}.sorted.bam
+    samtools idxstats ${sample}.sorted.bam > ${sample}.idxstats
+    samtools flagstat ${sample}.sorted.bam > ${sample}.flagstat
+    samtools depth -a -m 0 ${sample}.sorted.bam > ${sample}.coverage.txt
+
+    # Collect reads mapping to viral genome into a new fastq file for further analysis
+    samtools view --threads $task.cpus -b -o ${sample}.viral.bam ${sample}.sorted.bam \${VIRAL_CHR}
+    samtools fastq --threads $task.cpus -0 ${sample}.viral.fastq.gz ${sample}.viral.bam
+
+    # Collect unmapped reads into a new fastq file for further analysis
+    samtools view --threads $task.cpus -b -f 4 -o ${sample}.unmapped.bam ${sample}.sorted.bam
+    samtools fastq --threads $task.cpus -0 ${sample}.unmapped.fastq.gz ${sample}.unmapped.bam
+    """
+}
+
 // Main pipeline
 workflow {
     
     // Run the METADATA workflow
     METADATA(params.input)
 
-    // Run the initial processes
+    // Run the pre-processing processes
     TRIMGALORE(METADATA.out.data)
     STAR_VIRAL_INDEX(METADATA.out.refs)
     STAR_JOINT_INDEX(METADATA.out.refs)
@@ -375,7 +412,7 @@ workflow {
 
     // Key FASTX outputs
     fastx_keyed = FASTX.out.fastx_pair
-        .map { sample, combined, reverse, gtf, fasta, library -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", sample, combined, reverse) }
+        .map { sample, combined, reverse, gtf, fasta, library -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", sample, combined, reverse, fasta, gtf) }
     fastx_keyed.view { "FASTX fastx_pair keyed: ${it}" }
 
     // Combine channels and filter for matching keys
@@ -386,5 +423,8 @@ workflow {
 
     // Run STAR_PREMAP
     STAR_PREMAP(joined_for_premap)
+
+    // Run SAMTOOLS
+    SAMTOOLS(STAR_PREMAP.out.premap_bam)
 
 }
