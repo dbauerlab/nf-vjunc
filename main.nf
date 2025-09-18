@@ -43,7 +43,7 @@ process STAR_VIRAL_INDEX {
         tuple path(gtf), path(fasta)
     
     output:
-        tuple path(fasta), path(gtf), path("*.index"), emit: viralindex
+        tuple path(gtf), path(fasta), path("*.index"), emit: viralindex
 
     script:
     """
@@ -352,11 +352,15 @@ process STAR_PREMAP {
 
 }
 
-process SAMTOOLS {
+process SAMTOOLS_PREMAP {
     
     tag "$sample"
     label 'process_medium'
-    publishDir "${params.outdir}/samtools", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/samtools", mode: 'copy', overwrite: true, pattern: '*.bam'
+    publishDir "${params.outdir}/samtools", mode: 'copy', overwrite: true, pattern: '*.fastq.gz'
+    publishDir "${params.outdir}/samtools", mode: 'copy', overwrite: true, pattern: '*.idxstats'
+    publishDir "${params.outdir}/samtools", mode: 'copy', overwrite: true, pattern: '*.flagstat'
+    publishDir "${params.outdir}/samtools", mode: 'copy', overwrite: true, pattern: '*.coverage.txt'
 
     container 'quay.io/biocontainers/samtools:1.22.1--h96c455f_0'
 
@@ -387,6 +391,60 @@ process SAMTOOLS {
     samtools view --threads $task.cpus -b -f 4 -o ${sample}.unmapped.bam ${sample}.sorted.bam
     samtools fastq --threads $task.cpus -0 ${sample}.unmapped.fastq.gz ${sample}.unmapped.bam
     """
+}
+
+process STAR_VIRAL {
+
+    tag "$sample"
+    label 'process_high'
+    publishDir "${params.outdir}/star_premap", mode: 'copy', overwrite: true, pattern: '*.bam'
+
+    container 'quay.io/biocontainers/star:2.7.11b--h5ca1c30_7'
+
+    input:
+        tuple val(key), val(sample), path(combined), path(reverse), path(fasta), path(gtf), path(joint_index)
+
+    output:
+        tuple val(sample), path(fasta), path(gtf), path("${sample}_Aligned.out.bam"), emit: premap_bam
+
+    script:
+    """
+    STAR \
+        --runThreadN $task.cpus \
+        --genomeDir ${STAR_IDX} \
+        --readFilesIn ${FQ_FILE} \
+        --readFilesCommand zcat \
+        --outFileNamePrefix ${sample}_ \
+        --outReadsUnmapped Fastx \
+        --outStd Log \
+        --outSAMtype BAM Unsorted \
+        --outSAMattributes Standard \
+        --twopassMode Basic \
+        --seedPerWindowNmax 30 \
+        --alignIntronMin 1 \
+        --outSJfilterOverhangMin 20 20 20 20 \
+        --outSJfilterCountUniqueMin 1 1 1 1 \
+        --outSJfilterCountTotalMin 1 1 1 1 \
+        --outSJfilterDistToOtherSJmin 0 0 0 0 \
+        --scoreGapNoncan 0 \
+        --scoreGapGCAG 0 \
+        --scoreGapATAC 0 \
+        --alignSJoverhangMin 20 \
+        --outFilterMatchNmin 40 \
+        --outSJfilterReads All \
+        --outSAMmultNmax 1 \
+        --outFilterMismatchNoverLmax 0.1 \
+        --alignEndsType Local \
+        --outFilterType BySJout \
+        --limitOutSJcollapsed 10000000 \
+        --limitIObufferSize 1500000000 1500000000 \
+        --alignSJstitchMismatchNmax 0 0 0 0 \
+        --alignSJDBoverhangMin 20 \
+        --alignSoftClipAtReferenceEnds Yes \
+        --scoreGenomicLengthLog2scale 0 \
+        --outFilterMultimapNmax 1
+    """
+
 }
 
 // Main pipeline
@@ -420,12 +478,28 @@ workflow {
     joined_for_premap = fastx_keyed.combine(joint_keyed, by: 0)  // Cartesian product of both channels, by first element (the key)
 
     // Optional: view to check
-    joined_for_premap.view { "STAR_PREMAP input: ${it}" }
+    //joined_for_premap.view { "STAR_PREMAP input: ${it}" }
 
     // Run STAR_PREMAP
     STAR_PREMAP(joined_for_premap)
 
-    // Run SAMTOOLS
-    SAMTOOLS(STAR_PREMAP.out.premap_bam)
+    // Run SAMTOOLS_PREMAP
+    SAMTOOLS_PREMAP(STAR_PREMAP.out.premap_bam)
+
+    // Key STAR_VIRAL_INDEX outputs
+    viral_keyed = STAR_VIRAL_INDEX.out.viralindex
+        .map { gtf, fasta, vindex -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", vindex) }
+    viral_keyed.view { "STAR viralindex keyed: ${it}" }
+
+    // Key SAMTOOLS_PREMAP viral outputs
+    samtools_pre_keyed = SAMTOOLS_PREMAP.out.viral
+        .map { sample, fasta, gtf, bam, fastq -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", sample, fastq) }
+    samtools_pre_keyed.view { "SAMTOOLS_PREMAP viral keyed: ${it}" }
+
+    // Combine channels and filter for matching keys
+    joined_for_viralmap = samtools_pre_keyed.combine(viral_keyed, by: 0)  // Cartesian product of both channels, by first element (the key)
+
+    // Optional: view to check
+    joined_for_viralmap.view { "STAR_VIRAL input: ${it}" }
 
 }
