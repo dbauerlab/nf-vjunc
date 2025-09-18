@@ -481,7 +481,7 @@ process SAMTOOLS_VIRAL {
 
     # Calculate CPM factor for all reads
     READS=$(samtools view -f 0 -c ${sample}.spliced.bam)
-    CPM_FACTOR_ALLREADS=\$(awk -v r=$READS 'BEGIN { printf "%.6f", 1000000/r }')
+    CPM_FACTOR_ALLREADS=\$(awk -v r=\$READS 'BEGIN { printf "%.6f", 1000000/r }')
     echo "\$CPM_FACTOR_ALLREADS" > ${sample}.cpm.txt
     """
 }
