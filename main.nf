@@ -476,7 +476,7 @@ process SAMTOOLS_VIRAL {
     samtools depth -a -m 0 ${sample}.sorted.bam > ${sample}.coverage.txt
 
     # Collect reads that are spliced
-    samtools view -h ${sample}.sorted.bam | awk -v OFS="\t" '$0 ~ /^@/{print $0;next;} $6 ~ /N/' | samtools view -b -o ${sample}.spliced.bam
+    samtools view -h ${sample}.sorted.bam | awk -v OFS="\t" '\$0 ~ /^@/{print \$0;next;} \$6 ~ /N/' | samtools view -b -o ${sample}.spliced.bam
     samtools index ${sample}.spliced.bam
 
     # Calculate CPM factor for all reads
