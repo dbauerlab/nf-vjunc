@@ -326,7 +326,7 @@ process STAR_PREMAP {
 
     tag "$sample"
     label 'process_high'
-    publishDir "${params.outdir}/star_premap", mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/star_premap", mode: 'copy', overwrite: true, pattern: '*.bam'
 
     container 'quay.io/biocontainers/star:2.7.11b--h5ca1c30_7'
 
@@ -334,7 +334,7 @@ process STAR_PREMAP {
         tuple val(key), val(sample), path(combined), path(reverse), path(fasta), path(gtf), path(joint_index)
 
     output:
-        tuple val(sample), path(fasta), path(gtf), path("${sample}_premap.bam"), emit: premap_bam
+        tuple val(sample), path(fasta), path(gtf), path("${sample}_Aligned.out.bam"), emit: premap_bam
 
     script:
     """
@@ -346,7 +346,8 @@ process STAR_PREMAP {
         --twopassMode Basic \
         --outReadsUnmapped None \
         --outSAMunmapped Within \
-        --outSAMtype BAM Unsorted > ${sample}_premap.bam
+        --outSAMtype BAM Unsorted \
+        --outFileNamePrefix ${sample}_
     """
 
 }
