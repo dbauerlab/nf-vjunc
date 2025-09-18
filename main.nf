@@ -322,11 +322,11 @@ process FASTX {
     """
 }
 
-process STAR_PREMAP {
+process STAR_HOST {
 
     tag "$sample"
     label 'process_high'
-    publishDir "${params.outdir}/star_premap", mode: 'copy', overwrite: true, pattern: '*.bam'
+    publishDir "${params.outdir}/star_host", mode: 'copy', overwrite: true, pattern: '*.bam'
 
     container 'quay.io/biocontainers/star:2.7.11b--h5ca1c30_7'
 
@@ -334,7 +334,7 @@ process STAR_PREMAP {
         tuple val(key), val(sample), path(combined), path(reverse), path(fasta), path(gtf), path(joint_index)
 
     output:
-        tuple val(sample), path(fasta), path(gtf), path("${sample}_Aligned.out.bam"), emit: premap_bam
+        tuple val(sample), path(fasta), path(gtf), path("${sample}_Aligned.out.bam"), emit: host_bam
 
     script:
     """
@@ -352,15 +352,15 @@ process STAR_PREMAP {
 
 }
 
-process SAMTOOLS_PREMAP {
+process SAMTOOLS_HOST {
     
     tag "$sample"
     label 'process_medium'
-    publishDir "${params.outdir}/samtools", mode: 'copy', overwrite: true, pattern: '*.bam'
-    publishDir "${params.outdir}/samtools", mode: 'copy', overwrite: true, pattern: '*.fastq.gz'
-    publishDir "${params.outdir}/samtools", mode: 'copy', overwrite: true, pattern: '*.idxstats'
-    publishDir "${params.outdir}/samtools", mode: 'copy', overwrite: true, pattern: '*.flagstat'
-    publishDir "${params.outdir}/samtools", mode: 'copy', overwrite: true, pattern: '*.coverage.txt'
+    publishDir "${params.outdir}/samtools_host", mode: 'copy', overwrite: true, pattern: '*.bam'
+    publishDir "${params.outdir}/samtools_host", mode: 'copy', overwrite: true, pattern: '*.fastq.gz'
+    publishDir "${params.outdir}/samtools_host", mode: 'copy', overwrite: true, pattern: '*.idxstats'
+    publishDir "${params.outdir}/samtools_host", mode: 'copy', overwrite: true, pattern: '*.flagstat'
+    publishDir "${params.outdir}/samtools_host", mode: 'copy', overwrite: true, pattern: '*.coverage.txt'
 
     container 'quay.io/biocontainers/samtools:1.22.1--h96c455f_0'
 
@@ -397,22 +397,22 @@ process STAR_VIRAL {
 
     tag "$sample"
     label 'process_high'
-    publishDir "${params.outdir}/star_premap", mode: 'copy', overwrite: true, pattern: '*.bam'
+    publishDir "${params.outdir}/star_viral", mode: 'copy', overwrite: true, pattern: '*.bam'
 
     container 'quay.io/biocontainers/star:2.7.11b--h5ca1c30_7'
 
     input:
-        tuple val(key), val(sample), path(combined), path(reverse), path(fasta), path(gtf), path(joint_index)
+        tuple val(key), val(sample), path(fastq), path(index)
 
     output:
-        tuple val(sample), path(fasta), path(gtf), path("${sample}_Aligned.out.bam"), emit: premap_bam
+        tuple val(sample), path("${sample}_Aligned.out.bam"), emit: viral_bam
 
     script:
     """
     STAR \
         --runThreadN $task.cpus \
-        --genomeDir ${STAR_IDX} \
-        --readFilesIn ${FQ_FILE} \
+        --genomeDir $index \
+        --readFilesIn $fastq \
         --readFilesCommand zcat \
         --outFileNamePrefix ${sample}_ \
         --outReadsUnmapped Fastx \
@@ -447,6 +447,108 @@ process STAR_VIRAL {
 
 }
 
+process SAMTOOLS_VIRAL {
+    
+    tag "$sample"
+    label 'process_medium'
+    publishDir "${params.outdir}/samtools_viral", mode: 'copy', overwrite: true, pattern: '*.bam'
+    publishDir "${params.outdir}/samtools_viral", mode: 'copy', overwrite: true, pattern: '*.fastq.gz'
+    publishDir "${params.outdir}/samtools_viral", mode: 'copy', overwrite: true, pattern: '*.idxstats'
+    publishDir "${params.outdir}/samtools_viral", mode: 'copy', overwrite: true, pattern: '*.flagstat'
+    publishDir "${params.outdir}/samtools_viral", mode: 'copy', overwrite: true, pattern: '*.txt'
+
+    container 'quay.io/biocontainers/samtools:1.22.1--h96c455f_0'
+
+    input:
+        tuple val(sample), path(bam)
+
+    output:
+        tuple val(sample), path("${sample}.idxstats"), path("${sample}.flagstat"), path("${sample}.coverage.txt"), emit: stats
+        tuple val(sample), path("${sample}.sorted.bam"), path("${sample}.spliced.bam"), path("${sample}.cpm.txt"), emit: bams
+
+    script:
+    """
+    # Sort, index, and generate stats on the pre-mapping BAM file
+    samtools sort --threads $task.cpus -o ${sample}.sorted.bam $bam
+    samtools index ${sample}.sorted.bam
+    samtools idxstats ${sample}.sorted.bam > ${sample}.idxstats
+    samtools flagstat ${sample}.sorted.bam > ${sample}.flagstat
+    samtools depth -a -m 0 ${sample}.sorted.bam > ${sample}.coverage.txt
+
+    # Collect reads that are spliced
+    samtools view -h ${sample}.sorted.bam | awk -v OFS="\t" '$0 ~ /^@/{print $0;next;} $6 ~ /N/' | samtools view -b -o ${sample}.spliced.bam
+    samtools index ${sample}.spliced.bam
+
+    # Calculate CPM factor for all reads
+    CPM_FACTOR_ALLREADS=\$(bc <<< "scale=6;1000000/$(samtools view -f 0 -c ${sample}.spliced.bam)")
+    echo "\$CPM_FACTOR_ALLREADS" > ${sample}.cpm.txt
+    """
+}
+
+process BEDTOOLS {
+    
+    tag "$sample"
+    label 'process_medium'
+    publishDir "${params.outdir}/bedtools", mode: 'copy', overwrite: true, pattern: '*.sorted.bg'
+
+    container 'quay.io/biocontainers/bedtools:2.31.1--h13024bc_3'
+
+    input:
+        tuple val(sample), path(sorted), path(spliced), path(cpm)
+
+    output:
+        tuple val(sample), path("${sample}.unstranded.cov.sorted.bg"), path("${sample}.plus.cov.sorted.bg"), path("${sample}.minus.cov.sorted.bg"), path("${sample}.spliced.unstranded.cov.sorted.bg"), path("${sample}.spliced.plus.cov.sorted.bg"), path("${sample}.spliced.minus.cov.sorted.bg"), emit: bedgraph
+        
+    script:
+    """
+    # Read CPM factor from file
+    CPM_FACTOR_ALLREADS=\$(cat ${cpm})
+
+    # Do coverage calculations for reads from unfiltered BAM
+    bedtools genomecov \
+        -scale \$CPM_FACTOR_ALLREADS \
+        -bga \
+        -ibam ${sorted} > ${sample}.unstranded.cov.bg
+    bedtools sort -i ${sample}.unstranded.cov.bg > ${sample}.unstranded.cov.sorted.bg
+  
+    bedtools genomecov \
+        -scale \$CPM_FACTOR_ALLREADS \
+        -bga \
+        -strand "+" \
+        -ibam ${sorted} > ${sample}.plus.cov.bg
+    bedtools sort -i ${sample}.plus.cov.bg > ${sample}.plus.cov.sorted.bg
+
+    bedtools genomecov \
+        -scale \$CPM_FACTOR_ALLREADS \
+        -bga \
+        -strand "-" \
+        -ibam ${sorted} > ${sample}.minus.cov.bg
+    bedtools sort -i ${sample}.minus.cov.bg > ${sample}.minus.cov.sorted.bg
+  
+    # Do coverage calculations for reads from spliced BAM
+    bedtools genomecov \
+        -scale \$CPM_FACTOR_ALLREADS \
+        -bga \
+        -ibam ${spliced} > ${sample}.spliced.unstranded.cov.bg
+    bedtools sort -i ${sample}.spliced.unstranded.cov.bg > ${sample}.spliced.unstranded.cov.sorted.bg
+  
+    bedtools genomecov \
+        -scale \$CPM_FACTOR_ALLREADS \
+        -bga \
+        -strand "+" \
+        -ibam ${spliced} > ${sample}.spliced.plus.cov.bg
+    bedtools sort -i ${sample}.spliced.plus.cov.bg > ${sample}.spliced.plus.cov.sorted.bg
+
+    bedtools genomecov \
+        -scale \$CPM_FACTOR_ALLREADS \
+        -bga \
+        -strand "-" \
+        -ibam ${spliced} > ${sample}.spliced.minus.cov.bg
+    bedtools sort -i ${sample}.spliced.minus.cov.bg > ${sample}.spliced.minus.cov.sorted.bg
+
+    """
+}
+
 // Main pipeline
 workflow {
     
@@ -467,39 +569,46 @@ workflow {
     // Key STAR_JOINT_INDEX outputs
     joint_keyed = STAR_JOINT_INDEX.out.jointindex
         .map { gtf, fasta, jindex -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", jindex) }
-    joint_keyed.view { "STAR jointindex keyed: ${it}" }
+    //joint_keyed.view { "STAR jointindex keyed: ${it}" }
 
     // Key FASTX outputs
     fastx_keyed = FASTX.out.fastx_pair
         .map { sample, combined, reverse, gtf, fasta, library -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", sample, combined, reverse, fasta, gtf) }
-    fastx_keyed.view { "FASTX fastx_pair keyed: ${it}" }
+    //fastx_keyed.view { "FASTX fastx_pair keyed: ${it}" }
 
     // Combine channels and filter for matching keys
-    joined_for_premap = fastx_keyed.combine(joint_keyed, by: 0)  // Cartesian product of both channels, by first element (the key)
-
+    joined_for_host = fastx_keyed.combine(joint_keyed, by: 0)  // Cartesian product of both channels, by first element (the key)
     // Optional: view to check
-    //joined_for_premap.view { "STAR_PREMAP input: ${it}" }
+    //joined_for_host.view { "STAR_HOST input: ${it}" }
 
-    // Run STAR_PREMAP
-    STAR_PREMAP(joined_for_premap)
+    // Run STAR_HOST
+    STAR_HOST(joined_for_host)
 
-    // Run SAMTOOLS_PREMAP
-    SAMTOOLS_PREMAP(STAR_PREMAP.out.premap_bam)
+    // Run SAMTOOLS_HOST
+    SAMTOOLS_HOST(STAR_HOST.out.host_bam)
 
     // Key STAR_VIRAL_INDEX outputs
     viral_keyed = STAR_VIRAL_INDEX.out.viralindex
         .map { gtf, fasta, vindex -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", vindex) }
-    viral_keyed.view { "STAR viralindex keyed: ${it}" }
+    //viral_keyed.view { "STAR viralindex keyed: ${it}" }
 
-    // Key SAMTOOLS_PREMAP viral outputs
-    samtools_pre_keyed = SAMTOOLS_PREMAP.out.viral
+    // Key SAMTOOLS_HOST viral outputs
+    samtools_pre_keyed = SAMTOOLS_HOST.out.viral
         .map { sample, fasta, gtf, bam, fastq -> tuple("${gtf.getName().toString()}::${fasta.getName().toString()}", sample, fastq) }
-    samtools_pre_keyed.view { "SAMTOOLS_PREMAP viral keyed: ${it}" }
+    //samtools_pre_keyed.view { "SAMTOOLS_HOST viral keyed: ${it}" }
 
     // Combine channels and filter for matching keys
-    joined_for_viralmap = samtools_pre_keyed.combine(viral_keyed, by: 0)  // Cartesian product of both channels, by first element (the key)
-
+    joined_for_viral = samtools_pre_keyed.combine(viral_keyed, by: 0)  // Cartesian product of both channels, by first element (the key)
     // Optional: view to check
-    joined_for_viralmap.view { "STAR_VIRAL input: ${it}" }
+    joined_for_viral.view { "STAR_VIRAL input: ${it}" }
+
+    // Run STAR_VIRAL
+    STAR_VIRAL(joined_for_viral)
+
+    // Run SAMTOOLS_VIRAL
+    SAMTOOLS_VIRAL(STAR_VIRAL.out.viral_bam)
+
+    // Run BEDTOOLS
+    BEDTOOLS(SAMTOOLS_VIRAL.out.bams)
 
 }
