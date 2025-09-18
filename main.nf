@@ -600,7 +600,7 @@ workflow {
     // Combine channels and filter for matching keys
     joined_for_viral = samtools_pre_keyed.combine(viral_keyed, by: 0)  // Cartesian product of both channels, by first element (the key)
     // Optional: view to check
-    joined_for_viral.view { "STAR_VIRAL input: ${it}" }
+    //joined_for_viral.view { "STAR_VIRAL input: ${it}" }
 
     // Run STAR_VIRAL
     STAR_VIRAL(joined_for_viral)
