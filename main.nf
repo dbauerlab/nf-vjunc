@@ -490,58 +490,48 @@ process BEDTOOLS {
     container 'quay.io/biocontainers/bedtools:2.31.1--h13024bc_3'
 
     input:
-        tuple val(sample), path(sorted), path(spliced), path(cpm)
+        tuple val(sample), path(sorted), path(spliced)
 
     output:
         tuple val(sample), path("${sample}.unstranded.cov.sorted.bg"), path("${sample}.plus.cov.sorted.bg"), path("${sample}.minus.cov.sorted.bg"), path("${sample}.spliced.unstranded.cov.sorted.bg"), path("${sample}.spliced.plus.cov.sorted.bg"), path("${sample}.spliced.minus.cov.sorted.bg"), emit: bedgraph
         
     script:
     """
-    # Read CPM factor from file
-    CPM_FACTOR_ALLREADS=\$(cat ${cpm})
-
-    # Do coverage calculations for reads from unfiltered BAM
+    # Do coverage for reads from unfiltered BAM
     bedtools genomecov \
-        -scale \$CPM_FACTOR_ALLREADS \
         -bga \
         -ibam ${sorted} > ${sample}.unstranded.cov.bg
     bedtools sort -i ${sample}.unstranded.cov.bg > ${sample}.unstranded.cov.sorted.bg
   
     bedtools genomecov \
-        -scale \$CPM_FACTOR_ALLREADS \
         -bga \
         -strand "+" \
         -ibam ${sorted} > ${sample}.plus.cov.bg
     bedtools sort -i ${sample}.plus.cov.bg > ${sample}.plus.cov.sorted.bg
 
     bedtools genomecov \
-        -scale \$CPM_FACTOR_ALLREADS \
         -bga \
         -strand "-" \
         -ibam ${sorted} > ${sample}.minus.cov.bg
     bedtools sort -i ${sample}.minus.cov.bg > ${sample}.minus.cov.sorted.bg
   
-    # Do coverage calculations for reads from spliced BAM
+    # Do coverage for reads from spliced BAM
     bedtools genomecov \
-        -scale \$CPM_FACTOR_ALLREADS \
         -bga \
         -ibam ${spliced} > ${sample}.spliced.unstranded.cov.bg
     bedtools sort -i ${sample}.spliced.unstranded.cov.bg > ${sample}.spliced.unstranded.cov.sorted.bg
   
     bedtools genomecov \
-        -scale \$CPM_FACTOR_ALLREADS \
         -bga \
         -strand "+" \
         -ibam ${spliced} > ${sample}.spliced.plus.cov.bg
     bedtools sort -i ${sample}.spliced.plus.cov.bg > ${sample}.spliced.plus.cov.sorted.bg
 
     bedtools genomecov \
-        -scale \$CPM_FACTOR_ALLREADS \
         -bga \
         -strand "-" \
         -ibam ${spliced} > ${sample}.spliced.minus.cov.bg
     bedtools sort -i ${sample}.spliced.minus.cov.bg > ${sample}.spliced.minus.cov.sorted.bg
-
     """
 }
 
