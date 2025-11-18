@@ -464,7 +464,7 @@ process SAMTOOLS_VIRAL {
 
     output:
         tuple val(sample), path("${sample}.idxstats"), path("${sample}.flagstat"), path("${sample}.coverage.txt"), emit: stats
-        tuple val(sample), path("${sample}.sorted.bam"), path("${sample}.spliced.bam"), path("${sample}.cpm.txt"), emit: bams
+        tuple val(sample), path("${sample}.sorted.bam"), path("${sample}.spliced.bam"), emit: bams
 
     script:
     """
