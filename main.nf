@@ -478,11 +478,6 @@ process SAMTOOLS_VIRAL {
     # Collect reads that are spliced
     samtools view -h ${sample}.sorted.bam | awk -v OFS="\t" '\$0 ~ /^@/{print \$0;next;} \$6 ~ /N/' | samtools view -b -o ${sample}.spliced.bam
     samtools index ${sample}.spliced.bam
-
-    # Calculate CPM factor for all reads
-    READS=\$(samtools view -f 0 -c ${sample}.spliced.bam)
-    CPM_FACTOR_ALLREADS=\$(awk -v r=\$READS 'BEGIN { printf "%.6f", 1000000/r }')
-    echo "\$CPM_FACTOR_ALLREADS" > ${sample}.cpm.txt
     """
 }
 
