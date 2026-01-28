@@ -93,6 +93,10 @@ ProcessBAMs_v1 <- function(obj.dir, xtab, id.col, gtf.list) {
         with.which_label = FALSE
       )
       
+      # Count total number of reads
+      message('Counting total number of reads...')
+      xtab$total_reads[r] <- length(single.ga)
+
       # Count number of +ve and -ve strand reads
       message('Counting +ve & -ve reads...')
       strand_info <- strand(single.ga)
@@ -107,10 +111,10 @@ ProcessBAMs_v1 <- function(obj.dir, xtab, id.col, gtf.list) {
       spliced.ga <- single.ga[grepl("N", cigar(single.ga)), ]
       unspliced.ga <- single.ga[!grepl("N", cigar(single.ga)), ]
       
-      # Count number of reads in each
+      # Count number of spliced and unspliced reads
       message('Counting spliced and unspliced...')
-      xtab$total_reads[r] <- length(single.ga)
       xtab$spliced_reads[r] <- length(spliced.ga)
+      xtab$unspliced_reads[r] <- length(unspliced.ga)
       
       # Count number of genome reads (for background)
       message('Counting genome reads...')
