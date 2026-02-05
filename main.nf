@@ -535,6 +535,24 @@ process BEDTOOLS {
     """
 }
 
+process R_ANALYSIS {
+
+    tag "$sample"
+    label 'process_medium'
+    publishDir "${params.outdir}/r_analysis", mode: 'copy', overwrite: true, pattern: ''
+
+    input:
+        tuple val(sample), path(fastq1), path(fastq2), path(gtf), path(fasta), val(library), path("${sample}.sorted.bam"), path("${sample}.spliced.bam")
+    
+    output:
+        tuple val(sample), path("results.txt") // Will need editing 
+    
+    script:
+    """
+    Rscript analysis.R ${sample} ${sample}.sorted.bam ${gtf} ${fasta}
+    """
+}
+
 // Main pipeline
 workflow {
     
@@ -596,5 +614,11 @@ workflow {
 
     // Run BEDTOOLS
     BEDTOOLS(SAMTOOLS_VIRAL.out.bams)
+
+    // Join SAMTOOLS_VIRAL outputs with METADATA.out.data for downstream analysis
+    joined_for_analysis = METADATA.out.data.join(SAMTOOLS_VIRAL.out.bams)
+
+    // Run R_ANALYSIS on the sorted viral BAMs
+    R_ANALYSIS(joined_for_analysis)
 
 }
