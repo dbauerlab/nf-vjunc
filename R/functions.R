@@ -11,12 +11,13 @@ ProcessBAMs <- function(sample, bam, gtf, out.dir) {
     # Define output list
     results.list <- list()
     # Output dataframe and columns
-    xtab <- data.frame()
-    xtab$total_reads <- 0
-    xtab$spliced_reads <- 0
-    xtab$positive_strand <- 0
-    xtab$negative_strand <- 0
-    xtab$genome_reads <- 0
+    xtab <- data.frame(
+      total_reads = NA,
+      spliced_reads = NA,
+      positive_strand = NA,
+      negative_strand = NA,
+      genome_reads = NA
+    )
     # Read in all reads from BAM file
     message('Reading BAM...')
     single.ga <- readGAlignments(
@@ -32,12 +33,12 @@ ProcessBAMs <- function(sample, bam, gtf, out.dir) {
     )
     # Count total number of reads
     message('Counting total number of reads...')
-    xtab$total_reads[r] <- length(single.ga)
+    xtab$total_reads[1] <- length(single.ga)
     # Count number of +ve and -ve strand reads
     message('Counting +ve & -ve reads...')
     strand_info <- strand(single.ga)
-    xtab$positive_strand[r] <- sum(strand_info == "+")
-    xtab$negative_strand[r] <- sum(strand_info == "-")     
+    xtab$positive_strand[1] <- sum(strand_info == "+")
+    xtab$negative_strand[1] <- sum(strand_info == "-")     
     # Limit by strand
     single.ga <- single.ga[strand(single.ga) %in% "+", ]  
     # Isolate spliced and unspliced
@@ -46,8 +47,8 @@ ProcessBAMs <- function(sample, bam, gtf, out.dir) {
     unspliced.ga <- single.ga[!grepl("N", cigar(single.ga)), ]  
     # Count number of spliced and unspliced reads
     message('Counting spliced and unspliced...')
-    xtab$spliced_reads[r] <- length(spliced.ga)
-    xtab$unspliced_reads[r] <- length(unspliced.ga) 
+    xtab$spliced_reads[1] <- length(spliced.ga)
+    xtab$unspliced_reads[1] <- length(unspliced.ga) 
     # Count number of genome reads (for background)
     message('Counting genome reads...')
     # Define the genome background region as +/-500bp from the start of the S sgRNA intron
@@ -59,7 +60,7 @@ ProcessBAMs <- function(sample, bam, gtf, out.dir) {
                             strand = "+")
     # Count unspliced reads that overlap
     genome_bg.ga <- single.ga[single.ga %over% genomeRegion & !grepl("N", cigar(single.ga)), ]
-    xtab$genome_reads[r] <- length(genome_bg.ga) 
+    xtab$genome_reads[1] <- length(genome_bg.ga) 
     # Segment counts
     message('Calculating segment counts...')
     total.spliced.cnt <- table(seqnames(single.ga))[seqlevels(gtf)]
@@ -193,8 +194,6 @@ AddJuncSeq <- function(sample, junc.tab, fasta, out.dir){
 JuncClass <- function(sample, junc.seq.dat, gtf) {
     # Define canonical junctions from the gtf file(s).
     canonical_junctions.gr <- list()
-    ## NEED TO FIGURE OUT WHAT TO DO WITH VIRUS VARIABLE 
-    virus <- as.character(xtab$virus[n])
     gtf.gr <- gtf
     # Get exons for each transcript and then get the gaps (introns) between them as the canonical junctions
     canonical.gr <- lapply(split(gtf.gr, gtf.gr$gene_id), function(x) {
@@ -209,7 +208,6 @@ JuncClass <- function(sample, junc.seq.dat, gtf) {
       # Loop through transcripts to get the gaps (introns) as the canonical junctions
       for (t in 1:length(canonical.tx.gr)) {
         canonical.tx.gaps.gr <- gaps(canonical.tx.gr[[t]])
-        canonical.tx.gaps.gr$virus <- virus
         canonical.tx.gaps.gr$gene_id <- names(canonical.gr)[g]
         canonical.tx.gaps.gr$transcript_name <- names(canonical.tx.gr)[t]
         canonical_junctions.gr <- c(canonical_junctions.gr, canonical.tx.gaps.gr)
@@ -218,7 +216,6 @@ JuncClass <- function(sample, junc.seq.dat, gtf) {
     # Unlist and remove duplicates
     canonical_junctions.gr <- unlist(GRangesList(canonical_junctions.gr))
     canonical_junctions.gr$key <- paste(
-      canonical_junctions.gr$virus,
       seqnames(canonical_junctions.gr),
       start(canonical_junctions.gr),
       end(canonical_junctions.gr),
@@ -234,7 +231,7 @@ JuncClass <- function(sample, junc.seq.dat, gtf) {
     # Loop through table and classify as either canonical or alternative
     for (r in 1:nrow(junc.seq.dat)) {
       # Canonical
-      canonical.idx <- canonical_junctions.gr$virus %in% junc.seq.dat$virus[r] &
+      canonical.idx <-
         seqnames(canonical_junctions.gr) %in% junc.seq.dat$chr[r] &
         (
           start(canonical_junctions.gr) %in% junc.seq.dat$donor_site[r] &
@@ -246,7 +243,7 @@ JuncClass <- function(sample, junc.seq.dat, gtf) {
         junc.seq.dat$transcript_name[r] <- canonical_junctions.gr[canonical.idx, ]$transcript_name
       } else {
         # Alternative
-        alternative.idx <- canonical_junctions.gr$virus %in% junc.seq.dat$virus[r] &
+        alternative.idx <-
           seqnames(canonical_junctions.gr) %in% junc.seq.dat$chr[r] &
           (((
             start(canonical_junctions.gr) %in% junc.seq.dat$donor_site[r]
@@ -277,55 +274,3 @@ JuncClass <- function(sample, junc.seq.dat, gtf) {
     # Return
     return(junc.seq.dat)
 }
-
-################################################################################
-#                       Junction Class Sequence Based                          #
-################################################################################
-
-## Define classes of spliced junction reads based on sequence motifs
-# TRS-L = AATCTAAACTT
-# NS2A = GTAATCTAAAC
-# HE = AATATTAAACT
-# S = TAATCTAAAC
-# NS5A = GTAATCAAAACTT
-# E = AATCCAAACATTAT
-# M = GTAATCCAAACATTAT
-# N = ATCTAAATTTTA
-
-# JuncClass_SeqBased <- function(junc.seq.dat) {
-#   TRSL = 'AATCTAAACTT'
-#   NS2A = 'GTAATCTAAAC'
-#   HE = 'AATATTAAACT'
-#   S = 'TAATCTAAAC'
-#   NS5A = 'GTAATCAAAACTT'
-#   E = 'AATCCAAACATTAT'
-#   M = 'GTAATCCAAACATTAT'
-#   N = 'ATCTAAATTTTA'
-#   sgRNAs <- c('NS2A', 'HE', 'S', 'NS5A', 'E', 'M', 'N')
-#   junc.class <- junc.seq.dat %>%
-#     mutate('Donor_Class' = case_when(grepl(TRSL, donor_seq) ~ 'TRS-L',
-#                                      .default = 'Unknown')) %>%
-#     mutate('Acceptor_Class' = case_when(grepl(NS2A, acceptor_seq) ~ 'NS2A',
-#                                         grepl(HE, acceptor_seq) ~ 'HE',
-#                                         grepl(S, acceptor_seq) ~ 'S',
-#                                         grepl(NS5A, acceptor_seq) ~ 'NS5A',
-#                                         grepl(E, acceptor_seq) ~ 'E',
-#                                         grepl(M, acceptor_seq) ~ 'M',
-#                                         grepl(N, acceptor_seq) ~ 'N',
-#                                         .default = 'Unknown')) %>%
-#     mutate('Class1' = case_when(Donor_Class == 'TRS-L' & Acceptor_Class %in% sgRNAs ~ 'Canonical',
-#                                Donor_Class == 'Unknown' & Acceptor_Class %in% sgRNAs ~ 'Alternative',
-#                                Donor_Class == 'TRS-L' & Acceptor_Class == 'Unknown' ~ 'Alternative',
-#                                Donor_Class == 'Unknown' & Acceptor_Class == 'Unknown' ~ 'Defective')) %>%
-#     mutate('Class2' = case_when(Class1 == 'Defective' & gap_size <= 10 ~ 'Defective_S1',
-#                                 Class1 == 'Defective' & gap_size > 10 & gap_size <= 100 ~ 'Defective_S2',
-#                                 Class1 == 'Defective' & gap_size > 100 & gap_size <= 1000 ~ 'Defective_S3',
-#                                 Class1 == 'Defective' & gap_size > 1000 & gap_size <= 10000 ~ 'Defective_S4',
-#                                 Class1 == 'Defective' & gap_size > 10000 & gap_size <= 100000 ~ 'Defective_S5',
-#                                 Class1 == 'Canonical' ~ Acceptor_Class,
-#                                 .default = Class1))
-#   # Save
-#   write.csv(junc.class,
-#             file = paste0(res.dir, '/virus_junction_seq_class.csv'))
-#   return(junc.class)
-# }
