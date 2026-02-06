@@ -539,13 +539,10 @@ process R_ANALYSIS {
 
     tag "$sample"
     label 'process_medium'
-    publishDir "${params.outdir}/r_analysis", mode: 'copy', overwrite: true, pattern: ''
+    publishDir "${params.outdir}/r_analysis", mode: 'copy', overwrite: true
 
     input:
         tuple val(sample), path(fastq1), path(fastq2), path(gtf), path(fasta), val(library), path("${sample}.sorted.bam"), path("${sample}.spliced.bam")
-    
-    output:
-        tuple val(sample), path("results.txt") // Will need editing 
     
     script:
     """
