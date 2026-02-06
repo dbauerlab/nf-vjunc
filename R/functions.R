@@ -143,6 +143,18 @@ JunctionTable <- function(sample, results.list) {
 ################################################################################
 
 AddJuncSeq <- function(sample, junc.tab, fasta){
+  # Check if junction table is empty or has no valid junctions
+  if (nrow(junc.tab) == 0 || all(is.na(junc.tab$chr)) || all(junc.tab$junction_depth == 0)) {
+    message("No valid junctions found for sample ", sample, ". Skipping sequence addition.")
+    # Return empty or minimal dataframe
+    junc.seq.dat <- junc.tab
+    junc.seq.dat$donor_seq <- character(0)
+    junc.seq.dat$acceptor_seq <- character(0)
+    # Save empty results
+    saveRDS(junc.seq.dat, file = paste0(sample, '_junction_seq.RDS'))
+    write.csv(junc.seq.dat, file = paste0(sample, '_junction_seq.csv'))
+    return(junc.seq.dat)
+  }
   # Index fasta
   indexFa(fasta)
   # Load FASTA file
