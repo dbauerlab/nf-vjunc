@@ -204,86 +204,98 @@ AddJuncSeq <- function(sample, junc.tab, fasta){
 ## defective = matches 0/2 junctions
 
 JuncClass <- function(sample, junc.seq.dat, gtf) {
-    # Define canonical junctions from the gtf file(s).
-    canonical_junctions.gr <- list()
-    gtf.gr <- gtf
-    # Get exons for each transcript and then get the gaps (introns) between them as the canonical junctions
-    canonical.gr <- lapply(split(gtf.gr, gtf.gr$gene_id), function(x) {
-      x[x$type %in% "exon", ]
-    })
-    canonical.gr <- canonical.gr[sapply(canonical.gr, length) > 1]      # Only splicing sgRNA
-    # Loop through genes and transcripts to get the gaps (introns) as the canonical junctions
-    for (g in 1:length(canonical.gr)) {
-      canonical.tx.gr <- split(canonical.gr[[g]], canonical.gr[[g]]$transcript_id)
-      canonical.tx.gr <- canonical.tx.gr[lapply(canonical.tx.gr, length) >
-                                           1]
-      # Loop through transcripts to get the gaps (introns) as the canonical junctions
-      for (t in 1:length(canonical.tx.gr)) {
-        canonical.tx.gaps.gr <- gaps(canonical.tx.gr[[t]])
-        canonical.tx.gaps.gr$gene_id <- names(canonical.gr)[g]
-        canonical.tx.gaps.gr$transcript_name <- names(canonical.tx.gr)[t]
-        canonical_junctions.gr <- c(canonical_junctions.gr, canonical.tx.gaps.gr)
-      }
+  # Check if junction table is empty or has no valid junctions
+  if (nrow(junc.seq.dat) == 0 || all(is.na(junc.seq.dat$chr)) || all(junc.seq.dat$junction_depth == 0)) {
+    message("No valid junctions found for sample ", sample, ". Skipping junction classification.")
+    # Add empty columns for consistency
+    junc.seq.dat$class <- factor(character(0), levels = c("canonical", "alternative", "defective"))
+    junc.seq.dat$gene_id <- character(0)
+    junc.seq.dat$transcript_name <- character(0)
+    # Save empty results
+    saveRDS(junc.seq.dat, file = paste0(sample, '_junction_class.RDS'))
+    write.csv(junc.seq.dat, file = paste0(sample, '_junction_class.csv'))
+    return(junc.seq.dat)
+  }
+  # Define canonical junctions from the gtf file(s).
+  canonical_junctions.gr <- list()
+  gtf.gr <- gtf
+  # Get exons for each transcript and then get the gaps (introns) between them as the canonical junctions
+  canonical.gr <- lapply(split(gtf.gr, gtf.gr$gene_id), function(x) {
+    x[x$type %in% "exon", ]
+  })
+  canonical.gr <- canonical.gr[sapply(canonical.gr, length) > 1]      # Only splicing sgRNA
+  # Loop through genes and transcripts to get the gaps (introns) as the canonical junctions
+  for (g in 1:length(canonical.gr)) {
+    canonical.tx.gr <- split(canonical.gr[[g]], canonical.gr[[g]]$transcript_id)
+    canonical.tx.gr <- canonical.tx.gr[lapply(canonical.tx.gr, length) >
+                                         1]
+    # Loop through transcripts to get the gaps (introns) as the canonical junctions
+    for (t in 1:length(canonical.tx.gr)) {
+      canonical.tx.gaps.gr <- gaps(canonical.tx.gr[[t]])
+      canonical.tx.gaps.gr$gene_id <- names(canonical.gr)[g]
+      canonical.tx.gaps.gr$transcript_name <- names(canonical.tx.gr)[t]
+      canonical_junctions.gr <- c(canonical_junctions.gr, canonical.tx.gaps.gr)
     }
-    # Unlist and remove duplicates
-    canonical_junctions.gr <- unlist(GRangesList(canonical_junctions.gr))
-    canonical_junctions.gr$key <- paste(
-      seqnames(canonical_junctions.gr),
-      start(canonical_junctions.gr),
-      end(canonical_junctions.gr),
-      sep = '.'
-    )
-    canonical_junctions.gr <- canonical_junctions.gr[!duplicated(canonical_junctions.gr$key), ]
-    ## Classify junctions
-    # Default is defective
-    junc.seq.dat$class <- factor("defective",
-                                 levels = c("canonical", "alternative", "defective"))
-    junc.seq.dat$gene_id <- ""
-    junc.seq.dat$transcript_name <- ""
-    # Loop through table and classify as either canonical or alternative
-    for (r in 1:nrow(junc.seq.dat)) {
-      # Canonical
-      canonical.idx <-
+  }
+  # Unlist and remove duplicates
+  canonical_junctions.gr <- unlist(GRangesList(canonical_junctions.gr))
+  canonical_junctions.gr$key <- paste(
+    seqnames(canonical_junctions.gr),
+    start(canonical_junctions.gr),
+    end(canonical_junctions.gr),
+    sep = '.'
+  )
+  canonical_junctions.gr <- canonical_junctions.gr[!duplicated(canonical_junctions.gr$key), ]
+  ## Classify junctions
+  # Default is defective
+  junc.seq.dat$class <- factor("defective",
+                               levels = c("canonical", "alternative", "defective"))
+  junc.seq.dat$gene_id <- ""
+  junc.seq.dat$transcript_name <- ""
+  # Loop through table and classify as either canonical or alternative
+  for (r in 1:nrow(junc.seq.dat)) {
+    # Canonical
+    canonical.idx <-
+      seqnames(canonical_junctions.gr) %in% junc.seq.dat$chr[r] &
+      (
+        start(canonical_junctions.gr) %in% junc.seq.dat$donor_site[r] &
+          end(canonical_junctions.gr) %in% junc.seq.dat$acceptor_site[r]
+      )
+    if (any(canonical.idx)) {
+      junc.seq.dat$class[r] <- "canonical"
+      junc.seq.dat$gene_id[r] <- canonical_junctions.gr[canonical.idx, ]$gene_id
+      junc.seq.dat$transcript_name[r] <- canonical_junctions.gr[canonical.idx, ]$transcript_name
+    } else {
+      # Alternative
+      alternative.idx <-
         seqnames(canonical_junctions.gr) %in% junc.seq.dat$chr[r] &
-        (
-          start(canonical_junctions.gr) %in% junc.seq.dat$donor_site[r] &
-            end(canonical_junctions.gr) %in% junc.seq.dat$acceptor_site[r]
-        )
-      if (any(canonical.idx)) {
-        junc.seq.dat$class[r] <- "canonical"
-        junc.seq.dat$gene_id[r] <- canonical_junctions.gr[canonical.idx, ]$gene_id
-        junc.seq.dat$transcript_name[r] <- canonical_junctions.gr[canonical.idx, ]$transcript_name
-      } else {
-        # Alternative
-        alternative.idx <-
-          seqnames(canonical_junctions.gr) %in% junc.seq.dat$chr[r] &
-          (((
-            start(canonical_junctions.gr) %in% junc.seq.dat$donor_site[r]
+        (((
+          start(canonical_junctions.gr) %in% junc.seq.dat$donor_site[r]
+        ) &
+          (
+            !end(canonical_junctions.gr) %in% junc.seq.dat$acceptor_site[r]
+          )
+        ) |
+          ((
+            !start(canonical_junctions.gr) %in% junc.seq.dat$donor_site[r]
           ) &
             (
-              !end(canonical_junctions.gr) %in% junc.seq.dat$acceptor_site[r]
+              end(canonical_junctions.gr) %in% junc.seq.dat$acceptor_site[r]
             )
-          ) |
-            ((
-              !start(canonical_junctions.gr) %in% junc.seq.dat$donor_site[r]
-            ) &
-              (
-                end(canonical_junctions.gr) %in% junc.seq.dat$acceptor_site[r]
-              )
-            ))
-        if (any(alternative.idx)) {
-          junc.seq.dat$class[r] <- "alternative"
-          junc.seq.dat$gene_id[r] <- paste(unique(canonical_junctions.gr[alternative.idx, ]$gene_id), collapse =
-                                             ';')
-          junc.seq.dat$transcript_name[r] <- paste(unique(canonical_junctions.gr[alternative.idx, ]$transcript_name),
-                                                   collapse = ';')
-        }
+          ))
+      if (any(alternative.idx)) {
+        junc.seq.dat$class[r] <- "alternative"
+        junc.seq.dat$gene_id[r] <- paste(unique(canonical_junctions.gr[alternative.idx, ]$gene_id), collapse =
+                                           ';')
+        junc.seq.dat$transcript_name[r] <- paste(unique(canonical_junctions.gr[alternative.idx, ]$transcript_name),
+                                                 collapse = ';')
       }
     }
-    # Save for sample
-    saveRDS(junc.seq.dat, file = paste0(sample, '_junction_class.RDS'))
-    write.csv(junc.seq.dat,
-              file = paste0(sample, '_junction_class.csv'))
-    # Return
-    return(junc.seq.dat)
+  }
+  # Save for sample
+  saveRDS(junc.seq.dat, file = paste0(sample, '_junction_class.RDS'))
+  write.csv(junc.seq.dat,
+            file = paste0(sample, '_junction_class.csv'))
+  # Return
+  return(junc.seq.dat)
 }
