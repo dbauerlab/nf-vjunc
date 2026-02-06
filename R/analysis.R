@@ -5,27 +5,16 @@
 # We will need to bind the sample BAM and GTF together in nextflow and then pass them together to this script for processing
 
 # Libraries
-library(GenomicFeatures)
 library(GenomicAlignments)
+library(GenomicFeatures)
 library(GenomicRanges)
 library(Biostrings)
 library(Rsamtools)
-library(ggplot2)
-library(RColorBrewer)
-library(viridis)
 library(reshape2)
-library(patchwork)
-library(circlize)
 library(stringr)
-library(openxlsx)
 library(scales)
 library(dplyr)
 library(tidyr)
-library(kableExtra)
-library(magick)
-library(DT)
-library(ggpubr)
-library(purrr)
 
 # Source custom functions
 source(file = file.path(SOMETHING, '/functions.R'))
