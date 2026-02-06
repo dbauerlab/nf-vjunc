@@ -7,7 +7,7 @@
 #                                 Process BAM                                  #
 ################################################################################
 
-ProcessBAMs <- function(sample, bam, gtf, out.dir) { 
+ProcessBAMs <- function(sample, bam, gtf) { 
     # Define output list
     results.list <- list()
     # Output dataframe and columns
@@ -77,11 +77,11 @@ ProcessBAMs <- function(sample, bam, gtf, out.dir) {
     results.list$segment_cnt <- seg.df
     results.list$junctions <- sample_junc.gr
     # Save xtab for sample as csv
-    write.csv(results.list$xtab, file = paste0(out.dir, '/', sample, '_xtab.csv'))
+    write.csv(results.list$xtab, file = paste0(sample, '_stats.csv'))
     # Save segment counts for sample as csv
-    write.csv(results.list$segment_cnt, file = paste0(out.dir, '/', sample, '_segment_counts.csv'))
+    write.csv(results.list$segment_cnt, file = paste0(sample, '_segment_counts.csv'))
     # Save junctions for sample as RDS
-    saveRDS(results.list$junctions, file = paste0(out.dir, '/', sample, '_junction_obj.RDS'))
+    saveRDS(results.list$junctions, file = paste0(sample, '_junction_obj.RDS'))
     # Return results
     return(results.list)
 }
@@ -91,7 +91,7 @@ ProcessBAMs <- function(sample, bam, gtf, out.dir) {
 ################################################################################
 
 # Compile a table of all junctions with their depth of coverage.
-JunctionTable <- function(sample, results.list, out.dir) {
+JunctionTable <- function(sample, results.list) {
     # Empty list for downstream
     sample_junc.list <- list()
     # Get junctions for sample
@@ -134,7 +134,7 @@ JunctionTable <- function(sample, results.list, out.dir) {
       mutate(gap_size = acceptor_site - donor_site) %>%
       filter(junction_depth > 0)
     # Save
-    write.csv(sample_junc.df, file = paste0(out.dir, '/', sample, '_junction_table.csv'))
+    write.csv(sample_junc.df, file = paste0(sample, '_junction_table.csv'))
     return(sample_junc.df)
 }
 
@@ -142,7 +142,7 @@ JunctionTable <- function(sample, results.list, out.dir) {
 #                      Add sequence of donor/acceptor                          #
 ################################################################################
 
-AddJuncSeq <- function(sample, junc.tab, fasta, out.dir){
+AddJuncSeq <- function(sample, junc.tab, fasta){
   # Index fasta
   indexFa(fasta)
   # Load FASTA file
@@ -175,8 +175,8 @@ AddJuncSeq <- function(sample, junc.tab, fasta, out.dir){
   junc.seq.dat <- junc.seq.dat %>%
     arrange(desc(log10_junction_freq))
   # Save for sample
-  saveRDS(junc.seq.dat, file = paste0(out.dir, '/', sample, '_junction_seq.RDS'))
-  write.csv(junc.seq.dat, file = paste0(out.dir, '/', sample, '_junction_seq.csv'))
+  saveRDS(junc.seq.dat, file = paste0(sample, '_junction_seq.RDS'))
+  write.csv(junc.seq.dat, file = paste0(sample, '_junction_seq.csv'))
   # Return
   return(junc.seq.dat)
 }
@@ -269,8 +269,9 @@ JuncClass <- function(sample, junc.seq.dat, gtf) {
       }
     }
     # Save for sample
+    saveRDS(junc.seq.dat, file = paste0(sample, '_junction_class.RDS'))
     write.csv(junc.seq.dat,
-              file = paste0(out.dir, '/', sample, '_junction_class.csv'))
+              file = paste0(sample, '_junction_class.csv'))
     # Return
     return(junc.seq.dat)
 }

@@ -30,18 +30,6 @@ library(purrr)
 # Source custom functions
 source(file = file.path(SOMETHING, '/functions.R'))
 
-# Fixed directories
-proj.dir <- "/nemo/stp/babs/working/bootj/projects/bauerd/ciaran.gilbride/oc43_rnaseq/sgRNA_analysis"
-data.dir <- paste0(proj.dir, "/outputs")
-
-# Output directories
-out.dir <- paste0(proj.dir, "/outputs/objects")
-
-# Create
-if (!file.exists(out.dir)) {
-  dir.create(out.dir)
-}
-
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -55,17 +43,16 @@ fasta_file <- args[4]
 gtf <- rtracklayer::import(gtf_file)
 
 # Process BAMs
-results.list <- ProcessBAMs(sample = sample, bam = bam_file, gtf = gtf, out.dir = out.dir)
+results.list <- ProcessBAMs(sample = sample, bam = bam_file, gtf = gtf)
 
 # Create junction table
-juncTab <- JunctionTable(sample = sample, results.list = results.list, out.dir = out.dir)
+juncTab <- JunctionTable(sample = sample, results.list = results.list)
 
 # Add junction sequences
 juncTabSeq <- AddJuncSeq(
   sample = sample,
   junc.tab = juncTab,
-  fasta = fasta_file,
-  out.dir = out.dir
+  fasta = fasta_file
 )
 
 # Add junction classes
