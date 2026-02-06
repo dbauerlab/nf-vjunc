@@ -1,0 +1,54 @@
+Bootstrap: docker
+From: rocker/r-ver:4.5.0
+
+%post
+    # Install system dependencies
+    apt-get update && apt-get install -y \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        libxml2-dev \
+        libz-dev \
+        libbz2-dev \
+        liblzma-dev \
+        libpng-dev \
+        && rm -rf /var/lib/apt/lists/*
+
+    # Install BiocManager
+    R -e "install.packages('BiocManager', repos='https://cloud.r-project.org/')"
+
+    # Install Bioconductor packages (version 3.20 for R 4.5.0)
+    R -e "BiocManager::install(version = '3.20', ask = FALSE)"
+    R -e "BiocManager::install(c( \
+        'GenomicAlignments', \
+        'GenomicFeatures', \
+        'GenomicRanges', \
+        'Biostrings', \
+        'Rsamtools' \
+    ), ask = FALSE)"
+
+    # Install CRAN packages
+    R -e "install.packages(c( \
+        'reshape2', \
+        'stringr', \
+        'scales', \
+        'dplyr', \
+        'tidyr' \
+    ), repos='https://cloud.r-project.org/')"
+
+%environment
+    export LC_ALL=C
+
+%runscript
+    exec Rscript "$@"
+
+%labels
+    Author your_name
+    Version 1.0
+    R_Version 4.5.0
+    Bioconductor_Version 3.20
+
+%help
+    This container provides R 4.5.0 with genomics analysis packages:
+    - GenomicAlignments, GenomicFeatures, GenomicRanges
+    - Biostrings, Rsamtools
+    - reshape2, stringr, scales, dplyr, tidyr
