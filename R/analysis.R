@@ -1,3 +1,5 @@
+#!/usr/bin/env Rscript
+
 # Analysis script for quantification and classification of viral junctions/splicing/recombination 
 
 # Script will work on a by sample basis unlike the original versions
@@ -17,12 +19,10 @@ library(dplyr)
 library(tidyr)
 
 # Source custom functions
-source(file = file.path(SOMETHING, '/functions.R'))
+source("functions.R")
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-
-# The BAM file path is the first argument
 sample <- args[1]
 bam_file <- args[2]
 gtf_file <- args[3]

@@ -543,10 +543,12 @@ process R_ANALYSIS {
 
     input:
         tuple val(sample), path(fastq1), path(fastq2), path(gtf), path(fasta), val(library), path("${sample}.sorted.bam"), path("${sample}.spliced.bam")
+        path analysis_script
+        path functions_script
     
     script:
     """
-    Rscript analysis.R ${sample} ${sample}.sorted.bam ${gtf} ${fasta}
+    Rscript ${analysis_script} ${sample} ${sample}.sorted.bam ${gtf} ${fasta}
     """
 }
 
@@ -616,6 +618,10 @@ workflow {
     joined_for_analysis = METADATA.out.data.join(SAMTOOLS_VIRAL.out.bams)
 
     // Run R_ANALYSIS on the sorted viral BAMs
-    R_ANALYSIS(joined_for_analysis)
+    R_ANALYSIS(
+        joined_for_analysis,
+        file("${projectDir}/R/analysis.R"),
+        file("${projectDir}/R/functions.R")
+    )
 
 }
