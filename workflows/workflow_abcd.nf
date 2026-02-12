@@ -5,7 +5,7 @@ nextflow.enable.dsl=2
 
 // Include processes needed for this workflow
 include { TRIMGALORE } from '../modules/library_abcd/trimgalore.nf'
-include { UMITOOLS } from '../modules/library_abcd/umi_tools.nf'
+include { UMITOOLS } from '../modules/library_abcd/umitools.nf'
 include { HARDTRIM } from '../modules/library_abcd/hardtrim.nf'
 include { FLASH } from '../modules/library_abcd/flash.nf'
 include { FASTX } from '../modules/library_abcd/fastx.nf'
