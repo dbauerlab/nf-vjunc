@@ -23,8 +23,8 @@ workflow {
     METADATA(params.input)
 
     // Run the pre-processing workflows
-    WORKFLOW_ABCD(METADATA.out.branched_data.lib_abcd)
-    WORKFLOW_POLYA(METADATA.out.branched_data.lib_polya)
+    WORKFLOW_ABCD(METADATA.out.lib_abcd)
+    WORKFLOW_POLYA(METADATA.out.lib_polya)
 
     // Run STAR indexing    
     STAR_VIRAL_INDEX(METADATA.out.refs)

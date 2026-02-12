@@ -38,7 +38,8 @@ workflow METADATA {
             .set { refs }
     emit:
         rawdata
-        branched_data
+        lib_abcd = branched_data.lib_abcd
+        lib_polya = branched_data.lib_polya
         refs
 
 }
