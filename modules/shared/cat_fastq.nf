@@ -12,7 +12,7 @@ process CAT_FASTQ {
     tag "$sample"
     label 'process_low'
 
-    container 'ubuntu:22.04'
+    container "https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.2.0_cv1/biocontainers_v1.2.0_cv1.img"
 
     input:
         tuple val(sample), path(fastq1s), path(fastq2s), path(gtf), path(fasta), val(library)
