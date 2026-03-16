@@ -4,6 +4,7 @@
 nextflow.enable.dsl=2
 
 // Include processes needed for this workflow
+include { CAT_FASTQ } from '../modules/shared/cat_fastq.nf'
 include { TRIMGALORE } from '../modules/library_polya/trimgalore.nf'
 include { FLASH } from '../modules/library_polya/flash.nf'
 include { FASTX } from '../modules/library_polya/fastx.nf'
@@ -13,10 +14,12 @@ workflow WORKFLOW_POLYA {
         data  // tuple: sample_id, fastq1, fastq2, gtf, fasta, library
     
     main:
+        // Concatenate across lanes first; single-lane samples are copied as-is
+        CAT_FASTQ(data)
         // Run the pre-processing processes
-        TRIMGALORE(data)
+        TRIMGALORE(CAT_FASTQ.out.catfastq)
         FLASH(TRIMGALORE.out.trimfastq)
-        joined_for_fastx = data.join(FLASH.out.mergedfastq)
+        joined_for_fastx = CAT_FASTQ.out.catfastq.join(FLASH.out.mergedfastq)
         results_ch = FASTX(joined_for_fastx)
     
     emit:

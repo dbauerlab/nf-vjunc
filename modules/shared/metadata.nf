@@ -8,6 +8,7 @@ nextflow.enable.dsl=2
 workflow METADATA {
     take: csv
     main:
+        // Parse CSV and group rows by sample name, collecting fastq files across lanes into lists
         Channel
             .fromPath( csv )
             .splitCsv(header:true)
@@ -17,21 +18,33 @@ workflow METADATA {
                             file(row.gtf, checkIfExists: true),
                             file(row.fasta, checkIfExists: true),
                             row.library ]  }
+            .groupTuple(by: 0)
+            .map { sample, fastq1s, fastq2s, gtfs, fastas, libraries ->
+                // gtf, fasta, library must be identical across lanes for the same sample
+                [ sample, fastq1s, fastq2s, gtfs[0], fastas[0], libraries[0] ]
+            }
+            .set { grouped_data }
+
+        // rawdata: single representative fastq per sample (first lane) for downstream metadata joins
+        grouped_data
+            .map { sample, fastq1s, fastq2s, gtf, fasta, library ->
+                [ sample, fastq1s[0], fastq2s[0], gtf, fasta, library ]
+            }
             .set { rawdata }
 
-        // branch rawdata depending on library type - if A,B,C,D, send to WORKFLOW_ABCD, if PolyA, send to WORKFLOW_POLYA 
-        rawdata
+        // Branch grouped_data (fastq1s/fastq2s are lists) by library type for pre-processing workflows
+        grouped_data
             .branch {
                 lib_abcd: it[5] in ['A', 'B', 'C', 'D']
-                    return it // Returns full tuple: (sample_id, fastq1, fastq2, gtf, fasta, library)
+                    return it // Returns tuple: (sample_id, [fastq1s], [fastq2s], gtf, fasta, library)
                 lib_polya: it[5] == 'PolyA' 
-                    return it // Returns full tuple: (sample_id, fastq1, fastq2, gtf, fasta, library)
+                    return it // Returns tuple: (sample_id, [fastq1s], [fastq2s], gtf, fasta, library)
             } 
             .set { branched_data }
 
         // create refs channel with unique fasta+gtf pairs
-        rawdata
-            .map { sample, fastq1, fastq2, gtf, fasta, library ->
+        grouped_data
+            .map { sample, fastq1s, fastq2s, gtf, fasta, library ->
                 tuple(gtf, fasta)
             }
             .unique()
