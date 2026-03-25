@@ -1,0 +1,77 @@
+%%metro title: nf-vjunc
+%%metro style: light
+%%metro line: abcd | ABCD Libraries | #e63946
+%%metro line: polya | PolyA Libraries | #2196F3
+%%metro file: reads_in | FASTQ
+%%metro file: csv_in | CSV
+%%metro file: bams_out | BAM
+%%metro file: csv_out | CSV / RDS
+
+graph LR
+    subgraph input [Input / Metadata]
+        csv_in[ ]
+        reads_in[ ]
+        metadata[METADATA]
+        csv_in -->|abcd,polya| metadata
+    end
+
+    subgraph indexing [Indexing]
+        direction TB
+        star_joint_index[STAR Joint Index]
+        star_viral_index[STAR Viral Index]
+    end
+
+    subgraph preproc_abcd [ABCD Pre-processing]
+        trimgalore_abcd[TrimGalore]
+        umitools[UMI-tools]
+        hardtrim[HardTrim]
+        flash_abcd[FLASH]
+        fastx_abcd[FASTX]
+        trimgalore_abcd -->|abcd| umitools
+        umitools -->|abcd| hardtrim
+        hardtrim -->|abcd| flash_abcd
+        flash_abcd -->|abcd| fastx_abcd
+    end
+
+    subgraph preproc_polya [PolyA Pre-processing]
+        trimgalore_polya[TrimGalore]
+        flash_polya[FLASH]
+        fastx_polya[FASTX]
+        trimgalore_polya -->|polya| flash_polya
+        flash_polya -->|polya| fastx_polya
+    end
+
+    subgraph host_mapping [Host Mapping]
+        star_host[STAR Host]
+        samtools_host[SAMtools Host]
+        star_host -->|abcd,polya| samtools_host
+    end
+
+    subgraph viral_mapping [Viral Mapping]
+        star_viral[STAR Viral]
+        samtools_viral[SAMtools Viral]
+        star_viral -->|abcd,polya| samtools_viral
+    end
+
+    subgraph analysis [Analysis]
+        bedtools[BEDTools]
+        quantification[Quantification]
+        bams_out[ ]
+        csv_out[ ]
+        bedtools -->|abcd,polya| bams_out
+        quantification -->|abcd,polya| csv_out
+    end
+
+    reads_in -->|abcd,polya| metadata
+    metadata -->|abcd| trimgalore_abcd
+    metadata -->|polya| trimgalore_polya
+    metadata -->|abcd,polya| star_joint_index
+    metadata -->|abcd,polya| star_viral_index
+    star_joint_index -->|abcd,polya| star_host
+    fastx_abcd -->|abcd| star_host
+    fastx_polya -->|polya| star_host
+    samtools_host -->|abcd,polya| star_viral
+    star_viral_index -->|abcd,polya| star_viral
+    samtools_viral -->|abcd,polya| bedtools
+    samtools_viral -->|abcd,polya| quantification
+    metadata -->|abcd,polya| quantification
