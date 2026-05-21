@@ -31,7 +31,7 @@ process STAR_VIRAL {
         --outSAMattributes Standard \
         --twopassMode Basic \
         --seedPerWindowNmax 30 \
-        --alignIntronMin 1 \
+        --alignIntronMin 3 \
         --outSJfilterOverhangMin 20 20 20 20 \
         --outSJfilterCountUniqueMin 1 1 1 1 \
         --outSJfilterCountTotalMin 1 1 1 1 \
