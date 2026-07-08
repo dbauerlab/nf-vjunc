@@ -6,7 +6,7 @@ nextflow.enable.dsl=2
 process STAR_JOINT_INDEX {
 
     tag "$fasta"
-    label 'process_high'
+    label 'process_superhigh'
     publishDir "${params.outdir}/indices", mode: 'copy', overwrite: true, pattern: '*.index'
 
     container 'quay.io/biocontainers/star:2.7.11b--h5ca1c30_7'
@@ -70,7 +70,8 @@ process STAR_JOINT_INDEX {
         --genomeFastaFiles \${combined_fasta} \
         --sjdbGTFfile \${combined_gtf} \
         --runThreadN $task.cpus \
-        --genomeSAindexNbases \${saIndex}
+        --genomeSAindexNbases \${saIndex} \
+        --limitGenomeGenerateRAM 120000000000  
     """
     
 }
