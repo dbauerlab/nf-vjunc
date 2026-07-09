@@ -7,7 +7,6 @@ process TRIMGALORE {
 
     tag "$sample"
     label 'process_medium'
-    publishDir "${params.outdir}/adapter_trim", mode: 'copy', overwrite: true
 
     container 'quay.io/biocontainers/trim-galore:0.6.9--hdfd78af_0'
 

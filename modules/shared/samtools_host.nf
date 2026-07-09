@@ -7,11 +7,6 @@ process SAMTOOLS_HOST {
     
     tag "$sample"
     label 'process_medium'
-    publishDir "${params.outdir}/samtools_host", mode: 'copy', overwrite: true, pattern: '*.bam'
-    publishDir "${params.outdir}/samtools_host", mode: 'copy', overwrite: true, pattern: '*.fastq.gz'
-    publishDir "${params.outdir}/samtools_host", mode: 'copy', overwrite: true, pattern: '*.idxstats'
-    publishDir "${params.outdir}/samtools_host", mode: 'copy', overwrite: true, pattern: '*.flagstat'
-    publishDir "${params.outdir}/samtools_host", mode: 'copy', overwrite: true, pattern: '*.coverage.txt'
 
     container 'quay.io/biocontainers/samtools:1.22.1--h96c455f_0'
 

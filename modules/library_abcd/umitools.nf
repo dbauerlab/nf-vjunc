@@ -7,7 +7,6 @@ process UMITOOLS {
 
     tag "$sample"
     label 'process_medium'
-    publishDir "${params.outdir}/umitools", mode: 'copy', overwrite: true
 
     container 'quay.io/biocontainers/umi_tools:1.1.5--py39hbcbf7aa_4'
 

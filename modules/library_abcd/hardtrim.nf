@@ -7,7 +7,6 @@ process HARDTRIM {
 
     tag "$sample"
     label 'process_medium'
-    publishDir "${params.outdir}/hardtrim", mode: 'copy', overwrite: true
 
     container 'quay.io/biocontainers/fastx_toolkit:0.0.14--hfc679d8_7'
 

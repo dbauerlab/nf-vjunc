@@ -7,7 +7,6 @@ process FLASH {
 
     tag "$sample"
     label 'process_medium'
-    publishDir "${params.outdir}/merged", mode: 'copy', overwrite: true
 
     container 'staphb/flash:1.2.11'
 

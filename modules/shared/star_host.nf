@@ -7,7 +7,6 @@ process STAR_HOST {
 
     tag "$sample"
     label 'process_high'
-    publishDir "${params.outdir}/star_host", mode: 'copy', overwrite: true, pattern: '*.bam'
 
     container 'quay.io/biocontainers/star:2.7.11b--h5ca1c30_7'
 

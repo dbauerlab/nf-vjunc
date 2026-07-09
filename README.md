@@ -203,31 +203,17 @@ Provide your actual `samplesheet.csv` path.
 ### Reference indices
 - **STAR viral indices**: `${params.outdir}/indices/viral/` - viral-only STAR genome indices
 - **STAR joint indices**: `${params.outdir}/indices/joint/` - combined host+viral STAR genome indices
-- **Joint references**: 
-  - `${params.outdir}/joint_fasta/` - combined host+viral FASTA files
-  - `${params.outdir}/joint_gtf/` - combined host+viral GTF annotations
 
-### Preprocessing outputs (library-dependent)
-
-**For libraries A, B, C, D**:
-- **Trimmed FASTQs**: `${params.outdir}/abcd/adapter_trim/`
-- **UMI outputs and logs**: `${params.outdir}/abcd/umitools/`
-- **Hard trimmed reads**: `${params.outdir}/abcd/hardtrim/`
-- **Merged reads**: `${params.outdir}/abcd/merged/`
-- **Final combined FASTQs**: `${params.outdir}/abcd/fastx/`
-
-**For library PolyA**:
-- **Trimmed FASTQs**: `${params.outdir}/polya/adapter_trim/`
-- **Merged reads**: `${params.outdir}/polya/merged/`
-- **Final combined FASTQs**: `${params.outdir}/polya/fastx/`
+Intermediate preprocessing and host-alignment files are kept in the Nextflow work directory for pipeline execution, but are not published to `${params.outdir}`.
 
 ### Alignment and analysis outputs
-- **Host alignments**: `${params.outdir}/star_host/`
-- **Host BAM processing**: `${params.outdir}/samtools_host/`
 - **Viral alignments**: `${params.outdir}/star_viral/`
 - **Viral BAM processing**: `${params.outdir}/samtools_viral/`
 - **Coverage and junctions**: `${params.outdir}/bedtools/`
-- **Quantification results**: `${params.outdir}/quantification/`
+- **Quantification results**: `${params.outdir}/r_analysis/`
+
+### Run metadata
+- **Pipeline execution reports**: `${params.outdir}/pipeline_info/` - Nextflow timeline, report, trace, and DAG files
 
 ## Technical details
 
@@ -277,4 +263,4 @@ To enable diagnostics, uncomment the `.view{}` lines in main.nf.
 - **Channel combining**: The pipeline uses `.combine(by: 0)` to join channels by composite keys, creating a Cartesian product filtered by matching first element
 - **STAR index generation**: Automatically calculates `genomeSAindexNbases` based on genome length using: `min(14, max(4, int(log2(genomeLength)/2 - 1)))`
 - **PolyA simplification**: If your samples are PolyA-selected and don't require UMI processing, use library type "PolyA" for faster preprocessing
-- **Output organization**: Preprocessing outputs are separated by workflow (abcd/ vs polya/ directories), but alignment outputs are unified
+- **Output organization**: Only the final analysis outputs, indices, and pipeline metadata are published to `${params.outdir}`; intermediate files remain in the Nextflow work directory
