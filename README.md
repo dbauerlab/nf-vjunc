@@ -7,29 +7,93 @@
 ## High-level workflow
 
 - Read sample metadata from a samplesheet (CSV).
-- Trim adapters with Trim Galore (`TRIMGALORE`).
-- Extract UMIs with `umi_tools` (`UMITOOLS`).
-- Merge overlapping reads with `FLASH` and post-process with `FASTX`.
+- Branch samples by library type into two preprocessing workflows:
+  - **WORKFLOW_ABCD**: for library types A, B, C, D (includes UMI extraction and hard-trimming)
+  - **WORKFLOW_POLYA**: for library type PolyA (simplified workflow without UMI steps)
+- Build STAR genome indices for viral-only and host+viral (joint) reference genomes.
+- Mix preprocessed outputs from both workflows and align to host genome (`STAR_HOST`).
+- Filter host-mapped reads and extract viral reads (`SAMTOOLS_HOST`).
+- Align viral reads to viral reference (`STAR_VIRAL`).
+- Process viral alignments (`SAMTOOLS_VIRAL`, `BEDTOOLS`).
+- Quantify viral junctions and expression (`QUANTIFICATION`).
 
 ## Pipeline steps (what it does)
 
-1. METADATA: load the samplesheet and emit tuples of (sample, fastq1, fastq2, gtf, fasta, library).
-2. TRIMGALORE: adapter-trim paired reads and produce trimmed FASTQ files named `${sample}_val_1.fq.gz`/`_val_2.fq.gz`.
-3. UMITOOLS: extract UMIs from trimmed FASTQs and write UMI-extracted FASTQs and logs.
-4. HARDTRIM: Depending on library type, hard trim "x" bases from R1.
-5. FLASH: merge overlapping paired reads (produces extendedFrags and notCombined files).
-6. FASTX: reverse-complement and combine files into a single combined FASTQ per sample. Again, what is merged depends on library type.
+### 1. Metadata and branching
+
+**METADATA**: Load the samplesheet and emit three channels:
+- `rawdata`: all samples as tuples of (sample, fastq1, fastq2, gtf, fasta, library)
+- `branched_data`: samples split by library type into:
+  - `lib_abcd`: samples with library types A, B, C, or D
+  - `lib_polya`: samples with library type PolyA
+- `refs`: unique (gtf, fasta) pairs for indexing
+
+### 2. STAR indexing (parallel to preprocessing)
+
+**STAR_VIRAL_INDEX**: Build STAR genome index for each unique viral reference (gtf, fasta). Outputs viral index directory.
+
+**STAR_JOINT_INDEX**: Build STAR genome index combining host reference (from params.host_fasta/host_gtf) with each viral reference. Outputs:
+- Combined FASTA and GTF files
+- Joint genome index directory
+- Original gtf and fasta for downstream channel joining
+
+### 3. Preprocessing workflows (library-specific)
+
+#### WORKFLOW_ABCD (for library types A, B, C, D):
+
+1. **TRIMGALORE**: Adapter-trim paired reads → `${sample}_val_1.fq.gz`/`_val_2.fq.gz`
+2. **UMITOOLS**: Extract UMIs from trimmed FASTQs → UMI-extracted FASTQs and logs
+3. **HARDTRIM**: Library-specific hard trimming:
+   - Library A: no hard trimming (just copy files)
+   - Library B: hard trim 27bp from R1
+   - Libraries C/D: hard trim 19bp from R1
+4. **FLASH**: Merge overlapping paired reads → extendedFrags and notCombined files
+5. **FASTX**: Reverse-complement and combine:
+   - Library A: merged + R1 singletons + reverse-complemented R2 singletons
+   - Libraries B/C/D: merged + R1 singletons only
+   - Outputs: `combined.fastq.gz` and `combined.reverse.fastq.gz`
+
+#### WORKFLOW_POLYA (for library type PolyA):
+
+1. **TRIMGALORE**: Adapter-trim paired reads → `${sample}_val_1.fq.gz`/`_val_2.fq.gz`
+2. **FLASH**: Merge overlapping paired reads → extendedFrags and notCombined files
+3. **FASTX**: Reverse-complement and combine:
+   - Merged reads + R1 singletons only (no R2 singletons)
+   - Outputs: `combined.fastq.gz` and `combined.reverse.fastq.gz`
+
+**Note**: The PolyA workflow skips UMI extraction (UMITOOLS) and hard trimming (HARDTRIM) steps.
+
+### 4. Alignment and analysis
+
+1. **Mix workflows**: Combine outputs from WORKFLOW_ABCD and WORKFLOW_POLYA into single channel
+2. **STAR_HOST**: Align preprocessed reads to joint (host+viral) genome index
+3. **SAMTOOLS_HOST**: Process host alignments and extract viral reads (unmapped/partially-mapped)
+4. **STAR_VIRAL**: Align viral reads to viral-only reference
+5. **SAMTOOLS_VIRAL**: Process viral alignments (sort, index)
+6. **BEDTOOLS**: Generate coverage and junction information
+7. **QUANTIFICATION**: Quantify viral expression and junctions
 
 ## Required inputs
 
-- A samplesheet CSV passed to the `METADATA` workflow. The pipeline expects the CSV to have a header and at minimum the following columns (names used in the pipeline):
+### Samplesheet
 
-	- `sample` — unique sample identifier (used as the channel key)
-	- `fastq1` — path to R1 FASTQ
-	- `fastq2` — path to R2 FASTQ
-	- `gtf` — path to annotation GTF
-	- `fasta` — path to reference FASTA
-	- `library` — library type (must be A, B, C or D - what these stand for is detailed below)
+A samplesheet CSV passed to the `METADATA` workflow. The pipeline expects the CSV to have a header and at minimum the following columns (names used in the pipeline):
+
+- `sample` — unique sample identifier (used as the channel key)
+- `fastq1` — path to R1 FASTQ
+- `fastq2` — path to R2 FASTQ
+- `gtf` — path to viral annotation GTF
+- `fasta` — path to viral reference FASTA
+- `library` — library type (must be A, B, C, D, or PolyA - what these stand for is detailed below)
+
+### Host reference (required parameters)
+
+The pipeline requires host reference files to be specified via parameters:
+
+- `--host_fasta` — path to host genome FASTA file
+- `--host_gtf` — path to host genome GTF annotation file
+
+These are used by `STAR_JOINT_INDEX` to create combined host+viral indices.
 
 Example samplesheet (CSV):
 
@@ -37,6 +101,7 @@ Example samplesheet (CSV):
 sample,fastq1,fastq2,gtf,fasta,library
 SAMPLE_A,/path/to/SAMPLE_A_R1.fastq.gz,/path/to/SAMPLE_A_R2.fastq.gz,/path/to/genes.gtf,/path/to/ref.fasta,A
 SAMPLE_B,/path/to/SAMPLE_B_R1.fastq.gz,/path/to/SAMPLE_B_R2.fastq.gz,/path/to/genes.gtf,/path/to/ref.fasta,B
+SAMPLE_POLYA,/path/to/SAMPLE_POLYA_R1.fastq.gz,/path/to/SAMPLE_POLYA_R2.fastq.gz,/path/to/genes.gtf,/path/to/ref.fasta,PolyA
 ```
 
 Notes:
@@ -92,7 +157,19 @@ Notes:
 ### Library D
 
 - This is the same as library type C, but with a polyA selection step.
-- Processed as library type C.
+- Processed identically to library type C (19bp hard trim).
+
+### Library PolyA
+
+- PolyA-selected library with simplified preprocessing workflow
+- **No UMI extraction**: Unlike libraries A-D, this library type does not use UMI tools
+- **No hard trimming**: No primer sequences to hard-clip from R1
+
+**Processing steps**:
+- Standard Illumina adapter trimming (trim-galore) in a paired-end fashion, retaining reads >=30bp. Adapter sequence: AGATCGGAAGAGC.
+- Fragment sizes are expected to be small, so we collapse overlapping R1 and R2 reads based on a defined minimum overlap (flash). Minimum overlap is 18bp.
+- Combine the collapsed R1/R2 mate-paired reads with R1 reads that failed to overlap. R2 singletons are not considered for further analysis. This effectively creates a set of single-end reads of varying lengths for downstream analysis.
+- The library-prep results in reverse-complement reads, therefore reverse-complement the new FASTQ file to correct for this (fastx_reverse_complement).
 
 ## How to run
 
@@ -112,21 +189,78 @@ nextflow pull dbauerlab/nf-vjunc
 # Run Nextflow pipeline
 nextflow run dbauerlab/nf-vjunc \
     -profile crick \
-    -r main \
+    -r polya \
     -resume \
-    --input samplesheet.csv
+    --input samplesheet.csv \
+    --host_fasta /path/to/host/genome.fa \
+    --host_gtf /path/to/host/annotation.gtf
 ```
 
 Provide your actual `samplesheet.csv` path.
 
 ## Outputs
 
-- Trimmed FASTQs: `${params.outdir}/adapter_trim/${sample}_val_1.fq.gz` and `_val_2.fq.gz`.
-- UMI outputs and logs: `${params.outdir}/umitools/`.
-- Hard trimmed reads: `${params.outdir}/hardtrim/`.
-- Merged/combined reads: `${params.outdir}/merged/`.
-- Final combined FASTQs: `${params.outdir}/fastx/`.
+### Reference indices
+- **STAR viral indices**: `${params.outdir}/indices/viral/` - viral-only STAR genome indices
+- **STAR joint indices**: `${params.outdir}/indices/joint/` - combined host+viral STAR genome indices
+
+Intermediate preprocessing and host-alignment files are kept in the Nextflow work directory for pipeline execution, but are not published to `${params.outdir}`.
+
+### Alignment and analysis outputs
+- **Viral alignments**: `${params.outdir}/star_viral/`
+- **Viral BAM processing**: `${params.outdir}/samtools_viral/`
+- **Coverage and junctions**: `${params.outdir}/bedtools/`
+- **Quantification results**: `${params.outdir}/r_analysis/`
+
+### Run metadata
+- **Pipeline execution reports**: `${params.outdir}/pipeline_info/` - Nextflow timeline, report, trace, and DAG files
+
+## Technical details
+
+### Workflow branching and mixing
+
+The pipeline branches samples by library type after metadata loading:
+
+- **Branching**: METADATA workflow splits samples into two branches:
+  - `lib_abcd`: libraries A, B, C, D → routed to WORKFLOW_ABCD
+  - `lib_polya`: library PolyA → routed to WORKFLOW_POLYA
+- **Parallel processing**: Both workflows run in parallel
+- **Mixing**: Outputs from both workflows are combined using `.mix()` before alignment
+- **Benefit**: Allows library-specific processing while maintaining unified downstream analysis
+
+### Channel joining and keying
+
+The pipeline uses composite key strategies to match samples with their corresponding STAR indices:
+
+- **Composite key format**: `${gtf.getName()}::${fasta.getName()}` (using just filenames, not full paths)
+- **Key creation points**:
+  1. `joint_keyed`: STAR_JOINT_INDEX outputs keyed by gtf::fasta
+  2. `viral_keyed`: STAR_VIRAL_INDEX outputs keyed by gtf::fasta
+  3. `all_preprocessed_keyed`: Mixed FASTX outputs keyed by gtf::fasta
+  4. `samtools_pre_keyed`: SAMTOOLS_HOST viral outputs keyed by gtf::fasta
+- **Join operations**:
+  - Preprocessed samples + joint indices → STAR_HOST input
+  - SAMTOOLS_HOST viral outputs + viral indices → STAR_VIRAL input
+- **Combine method**: Uses `.combine(by: 0)` for Cartesian product filtered by matching keys
+
+### Diagnostic outputs
+
+The pipeline includes optional diagnostic views (commented out by default) that can be enabled to print:
+- `joint_keyed` - STAR joint index channels with keys
+- `viral_keyed` - STAR viral index channels with keys
+- `all_preprocessed` - mixed outputs from both preprocessing workflows
+- `all_preprocessed_keyed` - preprocessed outputs with composite keys
+- `joined_for_host` - matched samples and joint indices for STAR_HOST
+- `samtools_pre_keyed` - SAMTOOLS_HOST outputs with keys
+- `joined_for_viral` - matched samples and viral indices for STAR_VIRAL
+
+To enable diagnostics, uncomment the `.view{}` lines in main.nf.
 
 ## Tips & caveats
 
-- `join` pairs items by the first tuple element (here `sample`). Ensure both channels have `sample` as the first item.
+- **Library type specification**: Ensure the `library` column in your samplesheet uses exactly: A, B, C, D, or PolyA (case-sensitive)
+- **Branching logic**: Samples are automatically routed to the appropriate workflow based on library type
+- **Channel combining**: The pipeline uses `.combine(by: 0)` to join channels by composite keys, creating a Cartesian product filtered by matching first element
+- **STAR index generation**: Automatically calculates `genomeSAindexNbases` based on genome length using: `min(14, max(4, int(log2(genomeLength)/2 - 1)))`
+- **PolyA simplification**: If your samples are PolyA-selected and don't require UMI processing, use library type "PolyA" for faster preprocessing
+- **Output organization**: Only the final analysis outputs, indices, and pipeline metadata are published to `${params.outdir}`; intermediate files remain in the Nextflow work directory
