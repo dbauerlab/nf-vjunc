@@ -6,7 +6,7 @@ nextflow.enable.dsl=2
 process FASTX {
 
     tag "$sample"
-    label 'process_medium'
+    label 'process_superhigh'
 
     container 'quay.io/biocontainers/fastx_toolkit:0.0.14--hfc679d8_7'
 
